@@ -552,7 +552,6 @@ const ALL_CREW_NAMES=[
  'Maren Thompson',
  'James McDaniels',
  'Rich Hawley',
-  'Santa Clause',
  'Terry Long'
 ];
 const CREW_STORAGE_KEY='smtWeekendCrewRoster';
@@ -708,6 +707,41 @@ function parseFeaturedWeekendEvents(html,post){
   networks:tvBroadcastLogos([...card.querySelectorAll('.single-featured-event__details_broadcasters img')].map(img=>img.src).filter(Boolean))
  })).filter(e=>e.name);
 }
+function parseDetailedWeekendPage(html,post){
+ const doc=new DOMParser().parseFromString(html||'','text/html');
+ const year=inferWeekendYear(post);
+ const allowedSeries=new Map([
+  ['nascar-cup-series',{key:'cup',label:'NASCAR CUP SERIES'}],
+  ['nascar-xfinity-series',{key:'xfinity',label:'NASCAR XFINITY SERIES'}],
+  ['nascar-oreilly-auto-parts-series',{key:'xfinity',label:"NASCAR O'REILLY AUTO PARTS SERIES"}],
+  ['nascar-craftsman-truck-series',{key:'truck',label:'NASCAR CRAFTSMAN TRUCK SERIES'}]
+ ]);
+ return [...doc.querySelectorAll('.ws-events__event-table_event.desktop')].map((row,index)=>{
+  const seriesSlug=cleanWeekendText(row.dataset.series).toLowerCase();
+  const series=allowedSeries.get(seriesSlug);
+  const runType=Number(row.dataset.runtype);
+  if(!series||![1,2,3].includes(runType))return null;
+  const name=cleanWeekendText(row.querySelector('.event-table_event_details h4')?.textContent);
+  const track=cleanWeekendText(row.querySelector('.event-table_event_details p')?.textContent);
+  const date=cleanWeekendText(row.dataset.date);
+  const time=cleanWeekendText(row.querySelector('.event-table_event_time')?.textContent);
+  const networks=tvBroadcastLogos([...row.querySelectorAll('.event-table_event_broadcast img')].map(img=>img.currentSrc||img.src).filter(Boolean));
+  return {
+   id:`detail-${row.dataset.raceid||'event'}-${runType}-${index}`,
+   name,track,date,time,year,networks,
+   seriesKey:series.key,seriesLabel:series.label,
+   sessionKind:runType===3?'RACE':'SESSION',
+   sessionDetail:'',runType
+  };
+ }).filter(Boolean);
+}
+async function fetchDetailedWeekendEvents(post){
+ const url=post?.link;
+ if(!url)return [];
+ const response=await fetch(url,{cache:'no-store'});
+ if(!response.ok)throw new Error(`Weekend page HTTP ${response.status}`);
+ return parseDetailedWeekendPage(await response.text(),post);
+}
 function tryEventDate(event){
  const source=cleanWeekendText(`${event.date||''} ${event.time||''}`)
   .replace(/[|•]/g,' ')
@@ -715,11 +749,12 @@ function tryEventDate(event){
   .replace(/\b([ap])\.?m\.?\b/gi,(_,p)=>p.toUpperCase()+'M')
   .replace(/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+/i,'');
  const monthMatch=source.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?/i);
+ const numericDate=source.match(/\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/);
  const timeMatch=source.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
- if(!monthMatch)return null;
+ if(!monthMatch&&!numericDate)return null;
  const months={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
- const month=months[monthMatch[1].toLowerCase()];
- const day=+monthMatch[2],year=+(monthMatch[3]||event.year||new Date().getFullYear());
+ const month=numericDate?(+numericDate[1]-1):months[monthMatch[1].toLowerCase()];
+ const day=numericDate?+numericDate[2]:+monthMatch[2],year=numericDate?+numericDate[3]:+(monthMatch[3]||event.year||new Date().getFullYear());
  let hour=12,minute=0;
  if(timeMatch){hour=+timeMatch[1]%12;if(timeMatch[3].toUpperCase()==='PM')hour+=12;minute=+(timeMatch[2]||0)}
  const d=new Date(year,month,day,hour,minute,0,0);
@@ -741,17 +776,6 @@ function inferSeries(event){
  if(n.includes('brickyard')||n.includes('cup'))return {key:'cup',label:'NASCAR CUP SERIES'};
  return {key:'other',label:'NASCAR SERIES'};
 }
-function timeOnSameDay(base,timeText){
- if(!base||!timeText)return null;
- const m=timeText.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);if(!m)return null;
- let h=+m[1]%12;if(m[3].toUpperCase()==='PM')h+=12;
- const d=new Date(base);d.setHours(h,+m[2],0,0);return d;
-}
-const INDY_OPS_MOCK={
- truck:[{time:'2:05 PM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'3:10 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'8:00 PM',name:'TSport 200',detail:'(200 laps • 137.2 mi)',kind:'RACE'}],
- xfinity:[{time:'11:05 AM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'12:05 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'4:00 PM',name:'Pennzoil 250',detail:'(100 laps • 250 mi)',kind:'RACE'}],
- cup:[{time:'11:30 AM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'12:30 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'2:00 PM',name:'Brickyard 400',detail:'(160 laps • 400 mi)',kind:'RACE'}]
-};
 function sessionDurationMs(session){
  const minuteMatch=String(session.sessionDetail||'').match(/(\d+)\s*min/i);
  if(minuteMatch)return Number(minuteMatch[1])*60000;
@@ -762,12 +786,12 @@ function decorateSession(session){
  return {...session,durationMs,sessionEnd:session.sessionDate?new Date(session.sessionDate.getTime()+durationMs):null};
 }
 function buildOperationalSessions(events){
- const isIndy=events.some(e=>/tsport|pennzoil|brickyard/i.test(e.name||''));
- if(!isIndy)return events.map(e=>{const series=inferSeries(e);return decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:e.name,sessionKind:'RACE',sessionDetail:'',sessionTime:e.time||'TBD',sessionDate:e.parsedDate})});
- return events.flatMap(e=>{
-  const series=inferSeries(e),mock=INDY_OPS_MOCK[series.key];
-  if(!mock)return [decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:e.name,sessionKind:'RACE',sessionDetail:'',sessionTime:e.time||'TBD',sessionDate:e.parsedDate})];
-  return mock.map(item=>decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:item.name,sessionKind:item.kind,sessionDetail:item.detail,sessionTime:item.time,sessionDate:timeOnSameDay(e.parsedDate,item.time)}));
+ return events.map(e=>{
+  const inferred=inferSeries(e);
+  const seriesKey=e.seriesKey||inferred.key;
+  const seriesLabel=e.seriesLabel||inferred.label;
+  const kind=e.sessionKind||(e.runType===3?'RACE':/practice|qualifying/i.test(e.name||'')?'SESSION':'RACE');
+  return decorateSession({...e,seriesKey,seriesLabel,sessionName:e.name,sessionKind:kind,sessionDetail:e.sessionDetail||'',sessionTime:e.time||'TBD',sessionDate:e.parsedDate});
  }).sort((a,b)=>(a.sessionDate?.getTime()??Infinity)-(b.sessionDate?.getTime()??Infinity));
 }
 function sessionState(session,now=Date.now()){
@@ -806,7 +830,6 @@ function renderDaySchedules(events){
    }).join('')}</div>`
   }).join('')}</section>`
  }).join('')||'<div class="timelineEmpty">No events found for this weekend.</div>';
- const mockNotice=document.createElement('div');mockNotice.className='opsMockNotice';mockNotice.textContent='Session times, durations, laps and mileage shown for layout review only';weekendEventBrowser.prepend(mockNotice);
 }
 
 const TRACK_DATA=[
@@ -935,20 +958,34 @@ function renderSelectedWeekend(){
 }
 async function loadWeekendDashboard(){
  const fallback=cupFallbackWeekends();
- let detailed=[];
+ let featured=[];
  try{
   const response=await fetch(WEEKEND_LIST_URL,{cache:'no-store'});
   if(!response.ok)throw new Error(`HTTP ${response.status}`);
   const posts=await response.json();
-  if(Array.isArray(posts))detailed=posts.map(post=>({post,events:parseFeaturedWeekendEvents(post.content?.rendered||'',post)})).filter(item=>item.events.length);
- }catch(error){dashboardSourceStatus.textContent=`Season schedule active • detailed NASCAR weekend feed unavailable: ${cleanWeekendText(error.message)}`}
- weekendPosts=fallback.map(item=>mergeDetailedWeekend(item,detailed));
+  if(Array.isArray(posts))featured=posts.map(post=>({post,events:parseFeaturedWeekendEvents(post.content?.rendered||'',post)})).filter(item=>item.events.length);
+ }catch(error){dashboardSourceStatus.textContent=`Season schedule active • NASCAR weekend index unavailable: ${cleanWeekendText(error.message)}`}
+
+ weekendPosts=fallback.map(item=>mergeDetailedWeekend(item,featured));
+ const pageLoads=weekendPosts.map(async item=>{
+  if(!item?.post?.link)return item;
+  try{
+   const sessions=await fetchDetailedWeekendEvents(item.post);
+   return sessions.length?{...item,events:sessions,detailedSchedule:true}:item;
+  }catch(error){
+   console.warn('Detailed NASCAR schedule unavailable',item.post.link,error);
+   return item;
+  }
+ });
+ weekendPosts=await Promise.all(pageLoads);
  currentWeekendIndex=0;
  let savedId=null;try{savedId=localStorage.getItem(WEEKEND_STORAGE_KEY)}catch(_){}
  const savedIndex=savedId?weekendPosts.findIndex(item=>String(item.post?.id)===savedId):-1;
  selectedWeekendIndex=savedIndex>=0?savedIndex:0;
  populateWeekendSelect();renderSelectedWeekend();renderSeasonProgress();
- if(!detailed.length&&dashboardSourceStatus.textContent.startsWith('Automatic'))dashboardSourceStatus.textContent='Official 2026 Cup season schedule • detailed weekend schedule not yet published';
+ const detailedCount=weekendPosts.filter(item=>item.detailedSchedule).length;
+ if(detailedCount)dashboardSourceStatus.textContent=`Official NASCAR detailed weekend schedule • ${detailedCount} weekend${detailedCount===1?'':'s'} loaded`;
+ else if(!featured.length)dashboardSourceStatus.textContent='Official 2026 Cup season schedule • detailed NASCAR weekend schedule unavailable';
  scheduleSourceBadge.textContent='NOAA / NWS';scheduleSourceBadge.className='sourceBadge';
 }
 previousWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex-1));nextWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex+1));weekendSelect.addEventListener('change',()=>selectWeekend(Number(weekendSelect.value)));currentWeekendBtn.addEventListener('click',()=>selectWeekend(currentWeekendIndex));
