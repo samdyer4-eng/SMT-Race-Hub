@@ -1,1 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMT Race Weekend Dashboard</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:visible;background:#000;font-family:Arial,sans-serif;color:#fff}*{box-sizing:border-box}
+button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;color:#fff;cursor:pointer;font-size:14px;font-family:Arial,sans-serif}button:hover{background:#444}
+/* Screensaver race-weekend dashboard mockup */
+#infoDashboard{
+  position:fixed;
+  inset:0;
+  z-index:8;
+  display:block;
+  padding:42px 48px 42px;
+  background:
+    radial-gradient(circle at 75% 18%,rgba(255,255,255,.07),transparent 32%),
+    linear-gradient(135deg,#090909 0%,#151515 52%,#080808 100%);
+}
+.dashboardTop{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  margin-bottom:22px;
+}
+.dashboardEyebrow{
+  font:900 12px/1 Arial,sans-serif;
+  letter-spacing:2.2px;
+  color:#bdbdbd;
+  text-transform:uppercase;
+}
+.dashboardTrack{
+  margin-top:8px;
+  font:900 clamp(28px,4vw,58px)/.95 Arial,sans-serif;
+  letter-spacing:-1.8px;
+  text-transform:uppercase;
+}
+.dashboardClock{
+  text-align:right;
+  font:900 clamp(26px,3.2vw,46px)/1 Arial,sans-serif;
+}
+.dashboardClock small{
+  display:block;
+  margin-top:7px;
+  font:700 11px/1 Arial,sans-serif;
+  letter-spacing:1.4px;
+  color:#bdbdbd;
+}
+.dashboardGrid{
+  display:grid;
+  grid-template-columns:minmax(300px,.9fr) minmax(380px,1.35fr) minmax(280px,.8fr);
+  gap:18px;
+  height:calc(100vh - 220px);
+}
+.dashCard{
+  min-width:0;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(44,44,44,.96),rgba(14,14,14,.96));
+  box-shadow:0 12px 34px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.08);
+}
+.dashCardHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:11px 14px;
+  border-bottom:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg,#4a4a4a,#252525);
+  font:900 12px/1 Arial,sans-serif;
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+}
+.demoBadge{
+  padding:4px 7px;
+  border-radius:4px;
+  background:#d8d8d8;
+  color:#111;
+  font-size:9px;
+  letter-spacing:.8px;
+}
+.sessionBody{padding:16px}
+.nextSession{
+  padding:18px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:9px;
+  background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.025));
+}
+.sessionLabel{
+  color:#bdbdbd;
+  font:900 10px/1 Arial,sans-serif;
+  letter-spacing:1.4px;
+  text-transform:uppercase;
+}
+.sessionName{
+  margin-top:8px;
+  font:900 25px/1.05 Arial,sans-serif;
+}
+.sessionTime{
+  margin-top:8px;
+  color:#d9d9d9;
+  font:700 14px/1 Arial,sans-serif;
+}
+.countdown{
+  margin-top:20px;
+  font:900 clamp(30px,4vw,50px)/1 Arial,sans-serif;
+  letter-spacing:1px;
+}
+.sessionList{
+  margin-top:14px;
+  border-top:1px solid rgba(255,255,255,.14);
+}
+.sessionRow{
+  display:grid;
+  grid-template-columns:72px 1fr;
+  gap:12px;
+  padding:12px 2px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+.sessionRow time{color:#bdbdbd;font:900 11px/1 Arial,sans-serif}
+.sessionRow span{font:800 12px/1 Arial,sans-serif}
+@media(max-width:980px){
+  #infoDashboard{padding:22px 20px 22px}
+  .dashboardGrid{grid-template-columns:1fr 1fr;height:auto}
+  .sessionCard{grid-column:1/-1}
+}
+@media(max-width:700px){
+  #infoDashboard{overflow:auto;padding:18px 12px 18px}
+  .dashboardTop{align-items:flex-start}
+  .dashboardGrid{grid-template-columns:1fr}
+  .sessionCard{grid-column:auto}
+}
+
+
+/* Race Weekend Dashboard v2: live-source and mock-source treatments */
+.sourceBadge{padding:4px 7px;border-radius:4px;font-size:9px;letter-spacing:.8px;font-weight:900}
+.sourceBadge.live{background:#198f45;color:#fff;border:1px solid #72e99a}
+.sourceBadge.mock{background:#6a4d13;color:#ffe8a5;border:1px solid #c99a37}
+.dashboardStatus{margin-top:9px;color:#aaa;font:700 10px/1.25 Arial,sans-serif;letter-spacing:.35px}
+.networkLogoRow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+.networkLogoRow img{max-width:72px;max-height:28px;object-fit:contain;padding:4px 6px;border-radius:5px;background:#fff}
+
+/* v7.3: current weekend plus up to two upcoming published weekends */
+.weekendNav{display:flex;align-items:center;gap:7px;min-width:0}
+.weekendNav button{padding:6px 9px;border:1px solid rgba(255,255,255,.22);background:#292929;font-size:12px}
+.weekendNav button:disabled{opacity:.28;cursor:not-allowed}
+#weekendSelect{max-width:330px;min-width:210px;padding:6px 28px 6px 9px;border:1px solid rgba(255,255,255,.22);border-radius:7px;background:#202020;color:#fff;font:800 11px/1 Arial,sans-serif}
+#currentWeekendBtn{white-space:nowrap}
+.weekendOverviewBody{padding:20px}
+.weekendOverviewDate{color:#bdbdbd;font:900 11px/1 Arial,sans-serif;letter-spacing:1.2px;text-transform:uppercase}
+.weekendOverviewTitle{margin-top:10px;font:900 clamp(24px,3vw,42px)/1 Arial,sans-serif}
+.weekendOverviewTrack{margin-top:9px;color:#d4d4d4;font:800 14px/1.25 Arial,sans-serif}
+.weekendOverviewCount{margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.14);font:900 13px/1 Arial,sans-serif}
+.weekendEventBrowser{height:calc(100% - 38px);overflow:auto;padding:12px 18px 18px}
+@media(max-width:700px){.weekendNav{flex-wrap:wrap;justify-content:flex-end}.weekendNav button{padding:5px 7px;font-size:11px}#weekendSelect{max-width:220px;min-width:150px}}
+
+
+/* Empty schedule/feed state */
+.timelineEmpty{padding:22px;color:#aaa;text-align:center;font:700 12px/1.4 Arial,sans-serif}
+
+/* v5: compound dashboard — venue / weekend / weather */
+.venueBody{height:calc(100% - 38px);overflow:auto;padding:16px 18px 20px}
+.crewRoster{margin-top:18px;padding-top:15px;border-top:1px solid rgba(255,255,255,.14)}
+.crewRosterHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.crewRosterTitle{font:900 11px/1 Arial,sans-serif;letter-spacing:1.2px;text-transform:uppercase;color:#d8d8d8}
+.crewRosterHint{font:700 9px/1 Arial,sans-serif;color:#888}
+.crewRosterList{display:grid;gap:7px}
+.crewRosterRow{display:grid;grid-template-columns:24px minmax(0,1fr) 28px;gap:7px;align-items:center}
+.crewRosterNumber{color:#777;font:900 10px/1 Arial,sans-serif;text-align:center}
+.crewRosterInput{width:100%;min-width:0;padding:8px 9px;border:1px solid rgba(255,255,255,.17);border-radius:6px;background:#111;color:#fff;font:800 12px/1 Arial,sans-serif;outline:none}
+.crewRosterInput:focus{border-color:rgba(255,255,255,.5);box-shadow:0 0 0 2px rgba(255,255,255,.06)}
+.crewRosterRemove{width:28px;height:28px;padding:0;border-radius:6px;background:#282828;color:#aaa;font-size:16px;line-height:28px}
+.crewRosterRemove:hover{background:#4a2424;color:#fff}
+.crewRosterActions{display:flex;gap:7px;margin-top:10px}
+.crewRosterActions button{flex:1;padding:7px 8px;border:1px solid rgba(255,255,255,.14);border-radius:6px;background:#282828;font:900 9px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}
+.crewRosterSaved{margin-top:8px;color:#7dff9b;font:800 9px/1 Arial,sans-serif;opacity:0;transition:opacity .25s}
+.crewRosterSaved.visible{opacity:1}
+.venueName{font:900 23px/1.05 Arial,sans-serif}
+.venueLocation{margin-top:7px;color:#bbb;font:800 12px/1.25 Arial,sans-serif}
+.venueFacts{margin-top:14px}
+.venueFact{display:flex;justify-content:space-between;gap:18px;padding:11px 0;border-top:1px solid rgba(255,255,255,.11)}
+.venueFact span{color:#999;font:900 9px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.venueFact strong{text-align:right;font:900 13px/1.15 Arial,sans-serif}
+.weekendEventBrowser{height:auto;max-height:calc(100% - 155px)}
+.nextUpBar{margin:14px 18px 0;padding:14px 16px;border:1px solid rgba(255,255,255,.17);border-radius:9px;background:rgba(255,255,255,.045)}
+.nextUpGrid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center}.nextUpLabel{color:#aaa;font:900 9px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}.nextUpName{margin-top:6px;font:900 19px/1.05 Arial,sans-serif}.nextUpMeta{margin-top:6px;color:#bbb;font:800 10px/1.25 Arial,sans-serif}.nextUpCountdown{text-align:right}.nextUpCountdown .countdownStatus{margin-top:0}.nextUpCountdown .countdown{margin-top:5px;font-size:24px}
+.weatherBody{height:calc(100% - 38px);display:flex;flex-direction:column;padding:18px;text-align:left;overflow:auto}.weatherTop{display:flex;align-items:center;gap:15px}.weatherIcon{font-size:48px;line-height:1}.weatherTemp{font:900 38px/1 Arial,sans-serif}.weatherCondition{margin-top:4px;color:#bbb;font:800 11px/1.25 Arial,sans-serif}.weatherStats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}.weatherStat{padding:10px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:rgba(255,255,255,.035)}.weatherStat span{display:block;color:#999;font:900 8px/1 Arial,sans-serif;letter-spacing:.8px;text-transform:uppercase}.weatherStat strong{display:block;margin-top:6px;font:900 15px/1 Arial,sans-serif}.weatherStat strong.risk-low{color:#71d987}.weatherStat strong.risk-possible{color:#ffd45b}.weatherStat strong.risk-warning{color:#ff6767}.weatherAlert{margin-top:12px;padding:10px;border-left:3px solid #58bd72;background:rgba(88,189,114,.08);color:#c8f2d2;font:800 10px/1.35 Arial,sans-serif}.weatherAlert.warning{border-left-color:#e6c13a;color:#ffe18a;background:rgba(230,193,58,.09)}.weatherAlert.danger{border-left-color:#ff5b5b;color:#ffb0b0;background:rgba(255,91,91,.10)}.weatherHours{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;margin-top:12px}.weatherHour{padding:8px 2px;border-top:1px solid rgba(255,255,255,.12);text-align:center}.weatherHour b{display:block;font:900 10px/1 Arial,sans-serif}.weatherHour .hourTemp{display:block;margin-top:6px;color:#ddd;font:900 11px/1 Arial,sans-serif}.weatherHour .hourRainLabel{display:block;margin-top:7px;color:#888;font:900 7px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}.weatherHour .hourRainValue{display:block;margin-top:3px;color:#69aefc;font:900 13px/1 Arial,sans-serif}.weatherVenue{margin-top:auto;padding-top:12px;color:#888;font:800 9px/1.3 Arial,sans-serif}.weatherUnavailable{color:#aaa;font:800 12px/1.4 Arial,sans-serif;text-align:center;margin:auto}
+@media(max-width:900px){.nextUpGrid{grid-template-columns:1fr}.nextUpCountdown{text-align:left}.weekendEventBrowser{max-height:none}}
+
+
+/* v7: operations rundown */
+.dashboardGrid{grid-template-columns:minmax(260px,.78fr) minmax(560px,1.75fr) minmax(260px,.78fr);gap:14px}
+.weekendEventBrowser{height:calc(100% - 146px);max-height:none;padding:8px 18px 22px;overflow:auto}
+.opsDay{padding:18px 0 20px;border-bottom:1px solid rgba(255,255,255,.16)}
+.opsDay:last-child{border-bottom:0}
+.opsDayHeader{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:9px 11px;border-top:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.12);background:linear-gradient(90deg,rgba(255,255,255,.075),rgba(255,255,255,.015))}
+.opsDayTitle{font:900 18px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}
+.opsDayDate{color:#d0d0d0;font:900 18px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}
+.opsDayBullet{color:#777;font:900 16px/1 Arial,sans-serif}
+.opsSeries{margin-top:13px;padding-left:14px;border-left:4px solid #777}
+.opsSeries.truck{border-left-color:#d64545}.opsSeries.xfinity{border-left-color:#4b8fe2}.opsSeries.cup{border-left-color:#e6c13a}
+.opsSeriesHeader{display:flex;align-items:center;gap:9px;margin-bottom:7px;font:900 12px/1 Arial,sans-serif;letter-spacing:.9px;text-transform:uppercase}
+.opsSeriesDot{width:9px;height:9px;border-radius:2px;background:#777}.truck .opsSeriesDot{background:#d64545}.xfinity .opsSeriesDot{background:#4b8fe2}.cup .opsSeriesDot{background:#e6c13a}
+.opsSession{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:14px;align-items:center;min-height:38px;border-top:1px solid rgba(255,255,255,.075)}
+.opsSession:first-of-type{border-top:0}
+.opsTime{font:900 16px/1 Arial,sans-serif;font-variant-numeric:tabular-nums}
+.opsName{font:850 14px/1.15 Arial,sans-serif}.opsRace .opsName{font-size:15px}
+.opsDetail{color:#a9a9a9;font:italic 800 11px/1 Arial,sans-serif;letter-spacing:.15px;white-space:nowrap}
+.opsSession.next{margin:3px -10px;padding:0 10px;background:rgba(255,255,255,.075);box-shadow:inset 3px 0 0 #fff}
+.opsSession.done{opacity:.46}
+.opsMockNotice{padding:7px 10px;border:1px solid rgba(255,198,64,.35);border-radius:5px;background:rgba(255,198,64,.08);color:#ffd479;font:900 9px/1.2 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}
+.nextUpBar{margin:10px 18px 0;padding:10px 14px;background:linear-gradient(90deg,rgba(255,255,255,.085),rgba(255,255,255,.025))}
+.nextUpName{font-size:18px}.nextUpMeta{margin-top:4px}.nextUpCountdown .countdown{font-size:24px}
+@media(max-width:1150px){.dashboardGrid{grid-template-columns:1fr 1.45fr}.dashboardGrid>section:last-child{display:none}}
+@media(max-width:760px){.dashboardGrid{grid-template-columns:1fr}.opsSession{grid-template-columns:82px minmax(0,1fr)}.opsDetail{display:none}.opsDayTitle,.opsDayDate{font-size:15px}}
+
+
+/* Season/weekend separation v1 */
+#infoDashboard{padding-bottom:28px}
+.dashboardGrid{height:calc(100vh - 292px)}
+.seasonProgress{margin-top:14px;border:1px solid rgba(255,255,255,.22);border-radius:10px;background:linear-gradient(180deg,rgba(38,38,38,.97),rgba(12,12,12,.97));box-shadow:0 10px 28px rgba(0,0,0,.32);overflow:hidden}
+.seasonProgressHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,#424242,#222);font:900 10px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}
+.seasonProgressMeta{color:#aaa;font-size:9px;letter-spacing:.5px;white-space:nowrap}
+.seasonProgressViewport{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#555 #171717}
+.seasonProgressTrack{display:flex;align-items:stretch;min-width:max-content;height:48px}
+.seasonRace{position:relative;display:flex;flex-direction:column;justify-content:center;min-width:92px;padding:6px 10px;border-right:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.025)}
+.seasonRace.completed{opacity:.43;background:rgba(255,255,255,.018)}
+.seasonRace.current{opacity:1;background:linear-gradient(180deg,rgba(255,216,74,.22),rgba(255,216,74,.06));box-shadow:inset 0 3px 0 #ffd84a,inset 0 -2px 0 rgba(255,216,74,.45)}
+.seasonRace.upcoming{opacity:.85}
+.seasonRace.chase{background-image:linear-gradient(180deg,rgba(74,143,226,.11),rgba(74,143,226,.025))}
+.seasonRace.current.chase{background-image:linear-gradient(180deg,rgba(74,143,226,.30),rgba(74,143,226,.08));box-shadow:inset 0 3px 0 #70aaff,inset 0 -2px 0 rgba(112,170,255,.45)}
+.seasonRaceDate{color:#aaa;font:900 8px/1 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}
+.seasonRaceName{margin-top:5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:900 10px/1 Arial,sans-serif}
+.seasonRace.current .seasonRaceDate{color:#ffe58a}.seasonRace.current.chase .seasonRaceDate{color:#a9caff}
+.seasonDivider{position:relative;display:flex;align-items:center;justify-content:center;width:38px;min-width:38px;border-right:1px solid rgba(112,170,255,.45);border-left:2px solid #70aaff;background:rgba(74,143,226,.13);color:#b9d2ff;font:900 8px/1.05 Arial,sans-serif;letter-spacing:.6px;text-align:center;writing-mode:vertical-rl;transform:none;text-transform:uppercase}
+@media(max-width:1150px){
+  .dashboardGrid{grid-template-columns:1fr 1.45fr;height:auto}
+  .dashboardGrid>section:last-child{display:block;grid-column:1/-1;min-height:430px}
+  .seasonProgress{margin-bottom:18px}
+}
+@media(max-width:760px){
+  #infoDashboard{position:fixed;overflow:auto;padding:18px 12px 18px}
+  .dashboardGrid{grid-template-columns:1fr;height:auto}
+  .dashboardGrid>section:last-child{grid-column:auto;min-height:520px;display:block}
+  .seasonProgress{order:4;margin-top:14px;margin-bottom:22px}
+  .seasonProgressHeader{align-items:flex-start;flex-direction:column;gap:4px}
+  .seasonRace{min-width:84px}
+}
+
+
+/* Production event-status header v2 */
+.dashboardStatusLine{display:flex;align-items:center;gap:12px;margin-top:9px;min-width:0}
+.eventStatusPill{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:#303030;color:#fff;font:900 10px/1 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase}
+.eventStatusPill::before{content:'';width:8px;height:8px;border-radius:50%;background:#aaa;box-shadow:0 0 10px rgba(255,255,255,.25)}
+.eventStatusPill.upcoming::before{background:#fff}.eventStatusPill.live::before{background:#51df78;box-shadow:0 0 12px rgba(81,223,120,.75)}
+.eventStatusPill.yellow{background:#5a4a0b;color:#ffe875;border-color:#d7b928}.eventStatusPill.yellow::before{background:#ffd928;box-shadow:0 0 12px rgba(255,217,40,.8)}
+.eventStatusPill.red{background:#551919;color:#ffb0b0;border-color:#b74343}.eventStatusPill.red::before{background:#ff4f4f;box-shadow:0 0 12px rgba(255,79,79,.8)}
+.eventStatusPill.white{background:#555;color:#fff}.eventStatusPill.white::before{background:#fff;box-shadow:0 0 12px rgba(255,255,255,.8)}
+.eventStatusPill.checkered{background:repeating-linear-gradient(45deg,#eee 0 7px,#222 7px 14px);color:#fff;text-shadow:0 1px 2px #000;border-color:#fff}.eventStatusPill.checkered::before{background:#fff}
+.eventStatusPill.complete{opacity:.8}.eventStatusPill.offline{opacity:.7}
+.dashboardTrack.eventHeadline{margin-top:7px;font-size:clamp(28px,4vw,58px)}
+.dashboardStatus.eventMeta{margin-top:9px;color:#c2c2c2;letter-spacing:.5px}
+.eventMetaDetails{font:700 11px/1.35 Arial,sans-serif;color:#c2c2c2}
+.eventTopCountdown{
+  margin-top:6px;
+  font:italic 900 clamp(34px,4.3vw,58px)/1 Arial,sans-serif;
+  letter-spacing:-1px;
+  font-variant-numeric:tabular-nums;
+  color:#fff;
+}
+.eventTopCountdownLabel{
+  margin-top:10px;
+  font:900 10px/1 Arial,sans-serif;
+  letter-spacing:1.5px;
+  color:#aaa;
+  text-transform:uppercase;
+}
+@media(max-width:700px){.dashboardTop{gap:12px}.dashboardStatusLine{align-items:flex-start;flex-direction:column;gap:7px}.eventStatusPill{padding:6px 8px}.dashboardTrack.eventHeadline{font-size:clamp(25px,9vw,40px);line-height:1}.dashboardStatus.eventMeta{font-size:10px}.eventTopCountdown{font-size:clamp(30px,10vw,46px)}.dashboardClock{font-size:23px;white-space:nowrap}}
+
+</style>
+</head>
+<body>
+<div id="infoDashboard" aria-hidden="false">
+  <div class="dashboardTop">
+    <div>
+      <div class="dashboardEyebrow">SMT • RACE WEEKEND OPERATIONS BOARD</div>
+      <div class="dashboardStatusLine"><span id="eventStatusPill" class="eventStatusPill offline">CONNECTING</span></div>
+      <div id="dashboardTrackName" class="dashboardTrack eventHeadline">Loading event status…</div>
+      <div id="dashboardSourceStatus" class="dashboardStatus eventMeta">Connecting to schedule and NASCAR live feed</div>
+    </div>
+    <div id="dashboardClock" class="dashboardClock">--:--<small>LOCAL DEVICE TIME</small></div>
+  </div>
+
+  <div class="dashboardGrid">
+    <section class="dashCard">
+      <div class="dashCardHeader"><span>Venue</span><span id="venueTrackTypeBadge" class="sourceBadge mock">TRACK INFO</span></div>
+      <div class="venueBody">
+        <div id="venueName" class="venueName">Loading venue…</div>
+        <div id="venueLocation" class="venueLocation">Connecting to NASCAR</div>
+        <div class="venueFacts">
+          <div class="venueFact"><span>Length</span><strong id="venueLength">—</strong></div>
+          <div class="venueFact"><span>Configuration</span><strong id="venueType">—</strong></div>
+          <div class="venueFact"><span>Turns</span><strong id="venueTurns">—</strong></div>
+          <div class="venueFact"><span>Banking</span><strong id="venueBanking">—</strong></div>
+        </div>
+        <div class="crewRoster">
+          <div class="crewRosterHeader"><span class="crewRosterTitle">Crew Roster</span><span class="crewRosterHint">Saved on this device</span></div>
+          <div id="crewRosterList" class="crewRosterList"></div>
+          <div class="crewRosterActions"><button id="addCrewBtn" type="button">+ Add Name</button><button id="clearCrewBtn" type="button">Clear Roster</button></div>
+          <div id="crewRosterSaved" class="crewRosterSaved">Roster saved</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashCard">
+      <div class="dashCardHeader">
+        <span id="weekendBrowserTitle">Weekend Schedule</span>
+        <div class="weekendNav">
+          <select id="weekendSelect" title="Choose current or upcoming race weekend"><option>Loading weekends…</option></select>
+          <span id="weekendPosition" class="dashboardStatus">CURRENT</span>
+          <button id="currentWeekendBtn" type="button" title="Jump to the current race weekend">CURRENT</button>
+          <button id="nextWeekendBtn" type="button" title="Next available weekend">NEXT ▶</button>
+          <button id="previousWeekendBtn" type="button" title="Previous available weekend">◀ BACK</button>
+        </div>
+      </div>
+      <div class="nextUpBar">
+        <div class="nextUpGrid">
+          <div><div class="nextUpLabel">Next on-track session</div><div id="nextEventName" class="nextUpName">Loading…</div><div id="nextEventTime" class="nextUpMeta">NASCAR weekend feed</div><div id="nextEventLogos" class="networkLogoRow"></div></div>
+          <div class="nextUpCountdown"><div id="sessionCountdownStatus" class="countdownStatus">Finding current status…</div><div id="sessionCountdown" class="countdown">--:--:--</div></div>
+        </div>
+      </div>
+      <div id="weekendEventBrowser" class="weekendEventBrowser"><div class="sessionRow"><time>--</time><span>Loading NASCAR weekend events…</span></div></div>
+    </section>
+
+    <section class="dashCard sessionCard">
+      <div class="dashCardHeader"><span>Event Weather</span><span id="scheduleSourceBadge" class="sourceBadge mock">NOAA / NWS</span></div>
+      <div id="weatherBody" class="weatherBody">
+        <div class="weatherUnavailable">Waiting for venue weather…</div>
+        <div id="weatherVenue" class="weatherVenue">Waiting for venue…</div>
+      </div>
+    </section>
+  </div>
+
+  <section id="seasonProgress" class="seasonProgress" aria-label="2026 NASCAR Cup season progress">
+    <div class="seasonProgressHeader"><span>2026 Cup Season Progress</span><span id="seasonProgressMeta" class="seasonProgressMeta">Loading season…</span></div>
+    <div id="seasonProgressViewport" class="seasonProgressViewport"><div id="seasonProgressTrack" class="seasonProgressTrack"></div></div>
+  </section>
+</div>
+<script>
+(()=>{
+'use strict';
+const infoDashboard=document.getElementById('infoDashboard'),
+ dashboardClock=document.getElementById('dashboardClock'),
+ sessionCountdown=document.getElementById('sessionCountdown'),
+ sessionCountdownStatus=document.getElementById('sessionCountdownStatus'),
+ dashboardTrackName=document.getElementById('dashboardTrackName'),
+ eventStatusPill=document.getElementById('eventStatusPill'),
+ dashboardSourceStatus=document.getElementById('dashboardSourceStatus'),
+ nextEventName=document.getElementById('nextEventName'),
+ nextEventTime=document.getElementById('nextEventTime'),
+ nextEventLogos=document.getElementById('nextEventLogos'),
+ scheduleSourceBadge=document.getElementById('scheduleSourceBadge'),
+ previousWeekendBtn=document.getElementById('previousWeekendBtn'),
+ nextWeekendBtn=document.getElementById('nextWeekendBtn'),
+ weekendPosition=document.getElementById('weekendPosition'),
+ weekendBrowserTitle=document.getElementById('weekendBrowserTitle'),
+ weekendEventBrowser=document.getElementById('weekendEventBrowser'),
+ weekendSelect=document.getElementById('weekendSelect'),
+ currentWeekendBtn=document.getElementById('currentWeekendBtn'),
+ venueName=document.getElementById('venueName'),
+ venueLocation=document.getElementById('venueLocation'),
+ venueLength=document.getElementById('venueLength'),
+ venueType=document.getElementById('venueType'),
+ venueTurns=document.getElementById('venueTurns'),
+ venueBanking=document.getElementById('venueBanking'),
+ venueTrackTypeBadge=document.getElementById('venueTrackTypeBadge'),
+ weatherBody=document.getElementById('weatherBody'),
+ crewRosterList=document.getElementById('crewRosterList'),
+ addCrewBtn=document.getElementById('addCrewBtn'),
+ clearCrewBtn=document.getElementById('clearCrewBtn'),
+ crewRosterSaved=document.getElementById('crewRosterSaved'),
+  seasonProgressMeta=document.getElementById('seasonProgressMeta'),
+  seasonProgressViewport=document.getElementById('seasonProgressViewport'),
+  seasonProgressTrack=document.getElementById('seasonProgressTrack');
+const CREW_STORAGE_KEY='smtWeekendCrewRoster';
+let crewRoster=(()=>{try{const saved=JSON.parse(localStorage.getItem(CREW_STORAGE_KEY)||'null');return Array.isArray(saved)&&saved.length?saved:['','','','','',''];}catch(_){return ['','','','','',''];}})();
+let crewSavedTimer=null;
+function saveCrewRoster(){
+ crewRoster=crewRoster.map(name=>String(name||'')).slice(0,20);
+ localStorage.setItem(CREW_STORAGE_KEY,JSON.stringify(crewRoster));
+ crewRosterSaved.classList.add('visible');
+ clearTimeout(crewSavedTimer);
+ crewSavedTimer=setTimeout(()=>crewRosterSaved.classList.remove('visible'),1200);
+}
+function renderCrewRoster(){
+ crewRosterList.innerHTML='';
+ crewRoster.forEach((name,index)=>{
+  const row=document.createElement('div');row.className='crewRosterRow';
+  const num=document.createElement('span');num.className='crewRosterNumber';num.textContent=index+1;
+  const input=document.createElement('input');input.className='crewRosterInput';input.type='text';input.maxLength=32;input.placeholder='Crew member name';input.value=name;
+  input.addEventListener('input',()=>{crewRoster[index]=input.value;saveCrewRoster()});
+  const remove=document.createElement('button');remove.className='crewRosterRemove';remove.type='button';remove.title='Remove crew member';remove.textContent='×';
+  remove.addEventListener('click',()=>{crewRoster.splice(index,1);if(!crewRoster.length)crewRoster.push('');saveCrewRoster();renderCrewRoster()});
+  row.append(num,input,remove);crewRosterList.appendChild(row);
+ });
+}
+addCrewBtn.addEventListener('click',()=>{if(crewRoster.length>=20)return;crewRoster.push('');saveCrewRoster();renderCrewRoster();crewRosterList.lastElementChild?.querySelector('input')?.focus()});
+clearCrewBtn.addEventListener('click',()=>{crewRoster=['','','','','',''];saveCrewRoster();renderCrewRoster()});
+renderCrewRoster();
+
+
+const CUP_SEASON_2026=[
+ {date:'2026-02-01T20:00:00-05:00',short:'Clash',track:'Bowman Gray Stadium',race:'Cook Out Clash',network:'FOX',exhibition:true},
+ {date:'2026-02-15T14:30:00-05:00',short:'Daytona 500',track:'Daytona International Speedway',race:'Daytona 500',network:'FOX'},
+ {date:'2026-02-22T15:00:00-05:00',short:'Atlanta',track:'EchoPark Speedway',race:'EchoPark Speedway',network:'FOX'},
+ {date:'2026-03-01T15:30:00-05:00',short:'COTA',track:'Circuit of The Americas',race:'Circuit of The Americas',network:'FOX'},
+ {date:'2026-03-08T15:30:00-05:00',short:'Phoenix',track:'Phoenix Raceway',race:'Phoenix Raceway',network:'FS1'},
+ {date:'2026-03-15T16:00:00-04:00',short:'Las Vegas',track:'Las Vegas Motor Speedway',race:'Las Vegas Motor Speedway',network:'FS1'},
+ {date:'2026-03-22T15:00:00-04:00',short:'Darlington',track:'Darlington Raceway',race:'Darlington Raceway',network:'FS1'},
+ {date:'2026-03-29T15:30:00-04:00',short:'Martinsville',track:'Martinsville Speedway',race:'Martinsville Speedway',network:'FS1'},
+ {date:'2026-04-12T15:00:00-04:00',short:'Bristol',track:'Bristol Motor Speedway',race:'Bristol Motor Speedway',network:'FS1'},
+ {date:'2026-04-19T14:00:00-05:00',short:'Kansas',track:'Kansas Speedway',race:'Kansas Speedway',network:'FOX'},
+ {date:'2026-04-26T15:00:00-05:00',short:'Talladega',track:'Talladega Superspeedway',race:'Talladega Superspeedway',network:'FOX'},
+ {date:'2026-05-03T15:30:00-05:00',short:'Texas',track:'Texas Motor Speedway',race:'Texas Motor Speedway',network:'FS1'},
+ {date:'2026-05-10T15:00:00-04:00',short:'Watkins Glen',track:'Watkins Glen International',race:'Watkins Glen International',network:'FS1'},
+ {date:'2026-05-17T15:00:00-04:00',short:'All-Star',track:'Dover Motor Speedway',race:'All-Star Race',network:'FS1',exhibition:true},
+ {date:'2026-05-24T18:00:00-04:00',short:'Charlotte',track:'Charlotte Motor Speedway',race:'Coca-Cola 600',network:'Prime'},
+ {date:'2026-05-31T19:00:00-05:00',short:'Nashville',track:'Nashville Superspeedway',race:'Nashville Superspeedway',network:'Prime'},
+ {date:'2026-06-07T15:00:00-04:00',short:'Michigan',track:'Michigan International Speedway',race:'Michigan International Speedway',network:'Prime'},
+ {date:'2026-06-14T15:00:00-04:00',short:'Pocono',track:'Pocono Raceway',race:'Pocono Raceway',network:'Prime'},
+ {date:'2026-06-21T16:00:00-07:00',short:'San Diego',track:'Naval Base Coronado',race:'San Diego',network:'Prime'},
+ {date:'2026-06-28T15:30:00-07:00',short:'Sonoma',track:'Sonoma Raceway',race:'Sonoma Raceway',network:'TNT'},
+ {date:'2026-07-05T18:00:00-05:00',short:'Chicagoland',track:'Chicagoland Speedway',race:'Chicagoland Speedway',network:'TNT'},
+ {date:'2026-07-12T19:00:00-04:00',short:'Atlanta',track:'EchoPark Speedway',race:'EchoPark Speedway',network:'TNT'},
+ {date:'2026-07-19T19:00:00-04:00',short:'North Wilkesboro',track:'North Wilkesboro Speedway',race:'North Wilkesboro Speedway',network:'TNT'},
+ {date:'2026-07-26T14:00:00-04:00',short:'Indianapolis',track:'Indianapolis Motor Speedway',race:'Brickyard 400',network:'TNT'},
+ {date:'2026-08-09T15:30:00-05:00',short:'Iowa',track:'Iowa Speedway',race:'Iowa Speedway',network:'USA'},
+ {date:'2026-08-15T19:00:00-04:00',short:'Richmond',track:'Richmond Raceway',race:'Richmond Raceway',network:'USA'},
+ {date:'2026-08-23T15:00:00-04:00',short:'New Hampshire',track:'New Hampshire Motor Speedway',race:'New Hampshire Motor Speedway',network:'USA'},
+ {date:'2026-08-29T19:30:00-04:00',short:'Daytona',track:'Daytona International Speedway',race:'Daytona International Speedway',network:'NBC',regularFinale:true},
+ {date:'2026-09-06T17:00:00-04:00',short:'Darlington',track:'Darlington Raceway',race:'Darlington Raceway',network:'USA',chase:true},
+ {date:'2026-09-13T15:00:00-05:00',short:'Gateway',track:'World Wide Technology Raceway',race:'World Wide Technology Raceway',network:'USA',chase:true},
+ {date:'2026-09-19T19:30:00-04:00',short:'Bristol',track:'Bristol Motor Speedway',race:'Bristol Motor Speedway',network:'USA',chase:true},
+ {date:'2026-09-27T15:00:00-05:00',short:'Kansas',track:'Kansas Speedway',race:'Kansas Speedway',network:'USA',chase:true},
+ {date:'2026-10-04T17:30:00-07:00',short:'Las Vegas',track:'Las Vegas Motor Speedway',race:'Las Vegas Motor Speedway',network:'USA',chase:true},
+ {date:'2026-10-11T15:00:00-04:00',short:'Charlotte Roval',track:'Charlotte Motor Speedway Roval',race:'Charlotte Roval',network:'USA',chase:true},
+ {date:'2026-10-18T15:00:00-07:00',short:'Phoenix',track:'Phoenix Raceway',race:'Phoenix Raceway',network:'USA',chase:true},
+ {date:'2026-10-25T14:00:00-05:00',short:'Talladega',track:'Talladega Superspeedway',race:'Talladega Superspeedway',network:'NBC',chase:true},
+ {date:'2026-11-01T14:00:00-05:00',short:'Martinsville',track:'Martinsville Speedway',race:'Martinsville Speedway',network:'NBC',chase:true},
+ {date:'2026-11-08T15:00:00-05:00',short:'Championship',track:'Homestead-Miami Speedway',race:'NASCAR Championship',network:'NBC',chase:true}
+];
+function cupRaceDate(r){return new Date(r.date)}
+function cupRaceState(r,now=Date.now()){const t=cupRaceDate(r).getTime();if(now>t+EVENT_DURATION_MS)return 'completed';if(now>=t-3*86400000&&now<=t+EVENT_DURATION_MS)return 'current';return 'upcoming'}
+function renderSeasonProgress(){
+ const now=Date.now();let currentIndex=CUP_SEASON_2026.findIndex(r=>cupRaceState(r,now)==='current');if(currentIndex<0)currentIndex=CUP_SEASON_2026.findIndex(r=>cupRaceDate(r).getTime()>now);if(currentIndex<0)currentIndex=CUP_SEASON_2026.length-1;
+ let chaseDividerAdded=false;
+ seasonProgressTrack.innerHTML=CUP_SEASON_2026.map((r,index)=>{
+  let divider='';if(r.chase&&!chaseDividerAdded){chaseDividerAdded=true;divider='<div class="seasonDivider" title="The 2026 Chase begins">CHASE BEGINS</div>'}
+  const state=cupRaceState(r,now),date=cupRaceDate(r).toLocaleDateString([],{month:'short',day:'numeric'}),classes=['seasonRace',state,r.chase?'chase':''].filter(Boolean).join(' ');
+  const title=`${r.race} • ${r.track} • ${cupRaceDate(r).toLocaleString()} • ${r.network}${r.exhibition?' • Exhibition':''}`;
+  return `${divider}<div class="${classes}" data-season-index="${index}" title="${escapeHtml(title)}"><div class="seasonRaceDate">${escapeHtml(date)}${r.regularFinale?' • CUTOFF':''}</div><div class="seasonRaceName">${escapeHtml(r.short)}</div></div>`
+ }).join('');
+ const completed=CUP_SEASON_2026.filter(r=>cupRaceState(r,now)==='completed'&&!r.exhibition).length,remaining=CUP_SEASON_2026.filter(r=>cupRaceState(r,now)!=='completed'&&!r.exhibition).length;
+ seasonProgressMeta.textContent=`${completed} points races completed • ${remaining} remaining`;
+ requestAnimationFrame(()=>{const current=seasonProgressTrack.querySelector('.seasonRace.current')||seasonProgressTrack.querySelector(`[data-season-index="${currentIndex}"]`);if(current)seasonProgressViewport.scrollLeft=Math.max(0,current.offsetLeft-seasonProgressViewport.clientWidth*.34)});
+}
+function fallbackWeekendFromCup(r){
+ const d=cupRaceDate(r);
+ return {season:r,post:{id:`cup-${r.date}`,slug:`2026-${r.short.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`,title:{rendered:`Weekend Schedule for 2026 ${r.short}`},date:r.date,modified:r.date},events:[{id:`cup-event-${r.date}`,name:r.race,track:r.track,date:d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}),time:d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}),year:2026,networks:[]}]}
+}
+function cupFallbackWeekends(){
+ const now=Date.now();let index=CUP_SEASON_2026.findIndex(r=>cupRaceDate(r).getTime()+EVENT_DURATION_MS>=now);if(index<0)index=CUP_SEASON_2026.length-1;return CUP_SEASON_2026.slice(index,index+3).map(fallbackWeekendFromCup)
+}
+function mergeDetailedWeekend(fallback,detailed){
+ const target=cupRaceDate(fallback.season).getTime();
+ const match=detailed.find(item=>item.events.some(e=>{const d=tryEventDate(e);return d&&Math.abs(d.getTime()-target)<=3*86400000}));
+ return match?{...match,season:fallback.season}:fallback;
+}
+
+const WEEKEND_LIST_URL='https://www.nascar.com/wp-json/wp/v2/weekend_schedule?per_page=100&_fields=id,slug,link,title,modified,date,content';
+let nextFeaturedDate=null;
+let activeFeaturedEvent=null;
+let weekendPosts=[];
+let selectedWeekendIndex=0;
+let currentWeekendIndex=0;
+const WEEKEND_STORAGE_KEY='raceDashboardSelectedWeekendId';
+const EVENT_DURATION_MS=2*60*60*1000;
+const NASCAR_LIVE_FEED_URL='https://cf.nascar.com/live/feeds/live-feed.json';
+const LIVE_FEED_MAX_AGE_MS=20*60*1000;
+let currentOperationalSessions=[];
+let currentStatusSession=null;
+let latestLiveFeed=null;
+let latestLiveFeedReceivedAt=0;
+let selectedPrimaryTrack='';
+
+function cleanWeekendText(value){return String(value||'').replace(/\s+/g,' ').trim()}
+function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function networkNameFromUrl(src){return String(src||'').split('/').pop().split('?')[0].replace(/\.(png|jpg|jpeg|svg|webp)$/i,'').replace(/-\d+x\d+$/,'').replace(/[_-]+/g,' ').trim()}
+function logoHtml(src){const name=networkNameFromUrl(src);return `<img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" title="${escapeHtml(name)}" loading="lazy">`}
+function isTvBroadcastLogo(src){
+ const name=networkNameFromUrl(src).toLowerCase().replace(/\s+/g,' ');
+ if(/sirius|xm|mrn|prn|radio|nascar racing|nascar\.com|fox one|foxone/.test(name))return false;
+ return /(^|\s)(fs1|fs2|fox|nbc|usa|cw|tnt|trutv|cbs|abc|espn|espn2)(\s|$)|prime video|max/.test(name);
+}
+function tvBroadcastLogos(networks){return (networks||[]).filter(isTvBroadcastLogo)}
+function inferWeekendYear(post){
+ const haystack=cleanWeekendText(`${post?.title?.rendered||''} ${post?.slug||''} ${post?.date||''} ${post?.modified||''}`);
+ const explicit=haystack.match(/\b(20\d{2})\b/);
+ if(explicit)return +explicit[1];
+ const published=new Date(post?.date||post?.modified||'');
+ return Number.isNaN(published.getTime())?new Date().getFullYear():published.getFullYear();
+}
+function parseFeaturedWeekendEvents(html,post){
+ const doc=new DOMParser().parseFromString(html||'','text/html');
+ const year=inferWeekendYear(post);
+ return [...doc.querySelectorAll('.single-featured-event')].map((card,index)=>({
+  id:`event-${index}-${cleanWeekendText(card.textContent).slice(0,18).replace(/\W+/g,'-')}`,
+  name:cleanWeekendText(card.querySelector('.single-featured-event__details_name')?.textContent),
+  track:cleanWeekendText(card.querySelector('.single-featured-event__details_track')?.textContent),
+  date:cleanWeekendText(card.querySelector('.single-featured-event__details_date')?.textContent).replace(/\|\s*$/,''),
+  time:cleanWeekendText(card.querySelector('.single-featured-event__details_time')?.textContent),
+  year,
+  networks:tvBroadcastLogos([...card.querySelectorAll('.single-featured-event__details_broadcasters img')].map(img=>img.src).filter(Boolean))
+ })).filter(e=>e.name);
+}
+function tryEventDate(event){
+ const source=cleanWeekendText(`${event.date||''} ${event.time||''}`)
+  .replace(/[|•]/g,' ')
+  .replace(/\b(?:ET|EST|EDT)\b/gi,' ')
+  .replace(/\b([ap])\.?m\.?\b/gi,(_,p)=>p.toUpperCase()+'M')
+  .replace(/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+/i,'');
+ const monthMatch=source.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(20\d{2}))?/i);
+ const timeMatch=source.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+ if(!monthMatch)return null;
+ const months={jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,jun:5,june:5,jul:6,july:6,aug:7,august:7,sep:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11};
+ const month=months[monthMatch[1].toLowerCase()];
+ const day=+monthMatch[2],year=+(monthMatch[3]||event.year||new Date().getFullYear());
+ let hour=12,minute=0;
+ if(timeMatch){hour=+timeMatch[1]%12;if(timeMatch[3].toUpperCase()==='PM')hour+=12;minute=+(timeMatch[2]||0)}
+ const d=new Date(year,month,day,hour,minute,0,0);
+ return Number.isNaN(d.getTime())?null:d;
+}
+function dayKey(d){return d?`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'TBD'}
+function weekendSortDate(item){const dates=item.events.map(tryEventDate).filter(Boolean).map(d=>d.getTime());return dates.length?Math.min(...dates):new Date(item.post.modified||0).getTime()}
+function eventState(event,now=Date.now()){
+ if(!event.parsedDate)return {key:'tbd',label:'TBD'};
+ const start=event.parsedDate.getTime(),end=start+EVENT_DURATION_MS;
+ if(now>=start&&now<end)return {key:'live',label:'HAPPENING NOW'};
+ if(now<start)return {key:'next',label:'UPCOMING'};
+ return {key:'done',label:'COMPLETED'};
+}
+function inferSeries(event){
+ const n=cleanWeekendText(event.name).toLowerCase();
+ if(n.includes('tsport')||n.includes('truck'))return {key:'truck',label:'NASCAR CRAFTSMAN TRUCK SERIES'};
+ if(n.includes('pennzoil')||n.includes('xfinity'))return {key:'xfinity',label:'NASCAR XFINITY SERIES'};
+ if(n.includes('brickyard')||n.includes('cup'))return {key:'cup',label:'NASCAR CUP SERIES'};
+ return {key:'other',label:'NASCAR SERIES'};
+}
+function timeOnSameDay(base,timeText){
+ if(!base||!timeText)return null;
+ const m=timeText.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);if(!m)return null;
+ let h=+m[1]%12;if(m[3].toUpperCase()==='PM')h+=12;
+ const d=new Date(base);d.setHours(h,+m[2],0,0);return d;
+}
+const INDY_OPS_MOCK={
+ truck:[{time:'2:05 PM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'3:10 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'8:00 PM',name:'TSport 200',detail:'(200 laps • 137.2 mi)',kind:'RACE'}],
+ xfinity:[{time:'11:05 AM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'12:05 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'4:00 PM',name:'Pennzoil 250',detail:'(100 laps • 250 mi)',kind:'RACE'}],
+ cup:[{time:'11:30 AM',name:'Practice',detail:'(50 min)',kind:'SESSION'},{time:'12:30 PM',name:'Qualifying',detail:'(45 min)',kind:'SESSION'},{time:'2:00 PM',name:'Brickyard 400',detail:'(160 laps • 400 mi)',kind:'RACE'}]
+};
+function sessionDurationMs(session){
+ const minuteMatch=String(session.sessionDetail||'').match(/(\d+)\s*min/i);
+ if(minuteMatch)return Number(minuteMatch[1])*60000;
+ return session.sessionKind==='RACE'?EVENT_DURATION_MS:60*60000;
+}
+function decorateSession(session){
+ const durationMs=sessionDurationMs(session);
+ return {...session,durationMs,sessionEnd:session.sessionDate?new Date(session.sessionDate.getTime()+durationMs):null};
+}
+function buildOperationalSessions(events){
+ const isIndy=events.some(e=>/tsport|pennzoil|brickyard/i.test(e.name||''));
+ if(!isIndy)return events.map(e=>{const series=inferSeries(e);return decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:e.name,sessionKind:'RACE',sessionDetail:'',sessionTime:e.time||'TBD',sessionDate:e.parsedDate})});
+ return events.flatMap(e=>{
+  const series=inferSeries(e),mock=INDY_OPS_MOCK[series.key];
+  if(!mock)return [decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:e.name,sessionKind:'RACE',sessionDetail:'',sessionTime:e.time||'TBD',sessionDate:e.parsedDate})];
+  return mock.map(item=>decorateSession({...e,seriesKey:series.key,seriesLabel:series.label,sessionName:item.name,sessionKind:item.kind,sessionDetail:item.detail,sessionTime:item.time,sessionDate:timeOnSameDay(e.parsedDate,item.time)}));
+ }).sort((a,b)=>(a.sessionDate?.getTime()??Infinity)-(b.sessionDate?.getTime()??Infinity));
+}
+function sessionState(session,now=Date.now()){
+ const start=session?.sessionDate?.getTime?.();if(!Number.isFinite(start))return 'tbd';
+ const end=session?.sessionEnd?.getTime?.()??(start+sessionDurationMs(session));
+ if(now<start)return 'upcoming';
+ if(now<end)return 'live';
+ return 'completed';
+}
+function chooseStatusSession(sessions,now=Date.now()){
+ return sessions.find(s=>sessionState(s,now)==='live')||sessions.find(s=>sessionState(s,now)==='upcoming')||sessions[sessions.length-1]||null;
+}
+function seriesShort(session){return session?.seriesKey==='truck'?'TRUCK':session?.seriesKey==='xfinity'?'XFINITY':session?.seriesKey==='cup'?'CUP':''}
+
+function renderDaySchedules(events){
+ const sessions=buildOperationalSessions(events),groups=new Map();
+ sessions.forEach(s=>{const key=dayKey(s.sessionDate);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
+ const now=Date.now();let nextMarked=false;
+ weekendEventBrowser.innerHTML=[...groups.values()].map(items=>{
+  const first=items[0].sessionDate;
+  const day=first?first.toLocaleDateString([],{weekday:'long'}):'Date TBD';
+  const date=first?first.toLocaleDateString([],{month:'long',day:'numeric'}):'';
+  const seriesGroups=new Map();items.forEach(s=>{if(!seriesGroups.has(s.seriesKey))seriesGroups.set(s.seriesKey,[]);seriesGroups.get(s.seriesKey).push(s)});
+  return `<section class="opsDay"><div class="opsDayHeader"><div class="opsDayTitle">${escapeHtml(day)}</div><div class="opsDayBullet">•</div><div class="opsDayDate">${escapeHtml(date)}</div></div>${[...seriesGroups.entries()].map(([key,list])=>{
+   const label=list[0].seriesLabel;
+   return `<div class="opsSeries ${escapeHtml(key)}"><div class="opsSeriesHeader"><span class="opsSeriesDot"></span>${escapeHtml(label)}</div>${list.map(s=>{
+    const status=sessionState(s,now);let state='';if(status==='completed')state='done';else if(status==='live')state='next live';else if(!nextMarked&&status==='upcoming'){state='next';nextMarked=true}
+    return `<div class="opsSession ${state} ${s.sessionKind==='RACE'?'opsRace':''}"><div class="opsTime">${escapeHtml(s.sessionTime||'TBD')}</div><div class="opsName">${s.sessionKind==='RACE'?'🏁 ':''}${escapeHtml(s.sessionName)}</div><div class="opsDetail">${escapeHtml(s.sessionDetail||'')}</div></div>`
+   }).join('')}</div>`
+  }).join('')}</section>`
+ }).join('')||'<div class="timelineEmpty">No events found for this weekend.</div>';
+ const mockNotice=document.createElement('div');mockNotice.className='opsMockNotice';mockNotice.textContent='Session times, durations, laps and mileage shown for layout review only';weekendEventBrowser.prepend(mockNotice);
+}
+
+const TRACK_DATA=[
+ {match:['lucas oil indianapolis raceway park','indianapolis raceway park','lucas oil irp'],name:'Lucas Oil Indianapolis Raceway Park',location:'Brownsburg, Indiana',length:'0.686 mi',type:'Short oval',turns:'4',banking:'12°',mapClass:'short',lat:39.8128,lon:-86.3418},
+ {match:['indianapolis motor speedway'],name:'Indianapolis Motor Speedway',location:'Speedway, Indiana',length:'2.500 mi',type:'Rectangular oval',turns:'4',banking:'9.2°',mapClass:'',lat:39.7950,lon:-86.2347},
+ {match:['iowa speedway'],name:'Iowa Speedway',location:'Newton, Iowa',length:'0.875 mi',type:'Short oval',turns:'4',banking:'12–14°',mapClass:'short',lat:41.6740,lon:-93.0147},
+ {match:['richmond raceway'],name:'Richmond Raceway',location:'Richmond, Virginia',length:'0.750 mi',type:'D-shaped oval',turns:'4',banking:'14°',mapClass:'short',lat:37.5915,lon:-77.4207},
+ {match:['new hampshire motor speedway'],name:'New Hampshire Motor Speedway',location:'Loudon, New Hampshire',length:'1.058 mi',type:'Oval',turns:'4',banking:'2–7°',mapClass:'',lat:43.3622,lon:-71.4604},
+ {match:['daytona international speedway'],name:'Daytona International Speedway',location:'Daytona Beach, Florida',length:'2.500 mi',type:'Tri-oval',turns:'4',banking:'31°',mapClass:'',lat:29.1852,lon:-81.0705},
+ {match:['darlington raceway'],name:'Darlington Raceway',location:'Darlington, South Carolina',length:'1.366 mi',type:'Egg-shaped oval',turns:'4',banking:'23–25°',mapClass:'',lat:34.2956,lon:-79.9059},
+ {match:['world wide technology raceway','gateway'],name:'World Wide Technology Raceway',location:'Madison, Illinois',length:'1.250 mi',type:'Oval',turns:'4',banking:'9–11°',mapClass:'',lat:38.6508,lon:-90.1355},
+ {match:['bristol motor speedway'],name:'Bristol Motor Speedway',location:'Bristol, Tennessee',length:'0.533 mi',type:'Short oval',turns:'4',banking:'24–28°',mapClass:'short',lat:36.5157,lon:-82.2570},
+ {match:['kansas speedway'],name:'Kansas Speedway',location:'Kansas City, Kansas',length:'1.500 mi',type:'Tri-oval',turns:'4',banking:'17–20°',mapClass:'',lat:39.1157,lon:-94.8311},
+ {match:['las vegas motor speedway'],name:'Las Vegas Motor Speedway',location:'Las Vegas, Nevada',length:'1.500 mi',type:'Tri-oval',turns:'4',banking:'20°',mapClass:'',lat:36.2719,lon:-115.0111},
+ {match:['charlotte motor speedway roval','charlotte roval'],name:'Charlotte Motor Speedway Roval',location:'Concord, North Carolina',length:'2.280 mi',type:'Road course',turns:'17',banking:'Varies',mapClass:'road',lat:35.3515,lon:-80.6866},
+ {match:['phoenix raceway'],name:'Phoenix Raceway',location:'Avondale, Arizona',length:'1.000 mi',type:'Dogleg oval',turns:'4',banking:'8–11°',mapClass:'',lat:33.3748,lon:-112.3112},
+ {match:['talladega superspeedway'],name:'Talladega Superspeedway',location:'Lincoln, Alabama',length:'2.660 mi',type:'Tri-oval',turns:'4',banking:'33°',mapClass:'',lat:33.5666,lon:-86.0662},
+ {match:['martinsville speedway'],name:'Martinsville Speedway',location:'Ridgeway, Virginia',length:'0.526 mi',type:'Short oval',turns:'4',banking:'12°',mapClass:'short',lat:36.6345,lon:-79.8510},
+ {match:['homestead-miami speedway','homestead miami speedway'],name:'Homestead-Miami Speedway',location:'Homestead, Florida',length:'1.500 mi',type:'Oval',turns:'4',banking:'18–20°',mapClass:'',lat:25.4518,lon:-80.4085},
+ {match:['pocono raceway'],name:'Pocono Raceway',location:'Long Pond, Pennsylvania',length:'2.500 mi',type:'Tri-oval',turns:'3',banking:'Varies',mapClass:'',lat:41.0554,lon:-75.5113},
+ {match:['watkins glen'],name:'Watkins Glen International',location:'Watkins Glen, New York',length:'2.450 mi',type:'Road course',turns:'8',banking:'Varies',mapClass:'road',lat:42.3369,lon:-76.9272}
+]
+function trackInfoFor(track){const needle=cleanWeekendText(track).toLowerCase();return TRACK_DATA.find(t=>t.match.some(m=>needle.includes(m)))||{name:track||'Venue not listed',location:'Track details will be added as available',length:'—',type:'—',turns:'—',banking:'—',mapClass:''}}
+function renderVenue(track){const info=trackInfoFor(track);venueName.textContent=info.name;venueLocation.textContent=info.location;venueLength.textContent=info.length;venueType.textContent=info.type;venueTurns.textContent=info.turns;venueBanking.textContent=info.banking;venueTrackTypeBadge.textContent=info.type==='—'?'TRACK INFO':info.type.toUpperCase();loadWeatherFor(info);}
+let weatherRequestId=0,currentWeatherInfo=null;
+function cToF(c){return Number.isFinite(c)?Math.round(c*9/5+32):null}
+function weatherIconFor(text=''){const s=text.toLowerCase();if(s.includes('thunder'))return '⛈';if(s.includes('snow'))return '❄';if(s.includes('rain')||s.includes('shower'))return '🌧';if(s.includes('fog'))return '🌫';if(s.includes('cloud'))return '☁';return '☀'}
+function thunderRisk(periods,alerts){if(alerts.some(a=>/tornado|severe thunderstorm/i.test(a.properties?.event||'')))return ['WARNING','danger','risk-warning'];if(periods.some(p=>/thunder/i.test(`${p.shortForecast} ${p.detailedForecast}`)))return ['POSSIBLE','warning','risk-possible'];return ['LOW','','risk-low']}
+function weatherError(info,message='Weather data unavailable'){weatherBody.innerHTML=`<div class="weatherUnavailable">${escapeHtml(message)}</div><div id="weatherVenue" class="weatherVenue">Forecast target: ${escapeHtml(info?.name||'Unknown venue')}</div>`;scheduleSourceBadge.textContent='NOAA UNAVAILABLE';scheduleSourceBadge.className='sourceBadge mock';}
+async function fetchWeatherJson(url){const r=await fetch(url,{headers:{Accept:'application/geo+json'},cache:'no-store'});if(!r.ok)throw new Error(`NOAA HTTP ${r.status}`);return r.json()}
+async function loadWeatherFor(info){currentWeatherInfo=info;const requestId=++weatherRequestId;if(!Number.isFinite(info.lat)||!Number.isFinite(info.lon)){weatherError(info,'Track coordinates not yet added');return}scheduleSourceBadge.textContent='LOADING NOAA';scheduleSourceBadge.className='sourceBadge mock';try{const point=await fetchWeatherJson(`https://api.weather.gov/points/${info.lat},${info.lon}`);if(requestId!==weatherRequestId)return;const [hourly,stations,alerts]=await Promise.all([fetchWeatherJson(point.properties.forecastHourly),fetchWeatherJson(point.properties.observationStations),fetchWeatherJson(`https://api.weather.gov/alerts/active?point=${info.lat},${info.lon}`)]);const stationUrl=stations.features?.[0]?.id;let observation=null;if(stationUrl)try{observation=await fetchWeatherJson(`${stationUrl}/observations/latest`)}catch(_){}if(requestId!==weatherRequestId)return;const periods=(hourly.properties?.periods||[]).slice(0,8),nowP=periods[0]||{},props=observation?.properties||{};const temp=cToF(props.temperature?.value)??nowP.temperature??'—',humidity=Number.isFinite(props.relativeHumidity?.value)?Math.round(props.relativeHumidity.value):'—',dew=cToF(props.dewpoint?.value)??'—',rain=nowP.probabilityOfPrecipitation?.value??'—',condition=props.textDescription||nowP.shortForecast||'Conditions unavailable',activeAlerts=alerts.features||[],riskData=thunderRisk(periods,activeAlerts),risk=riskData[0],riskClass=riskData[1],riskTextClass=riskData[2],alertText=activeAlerts.length?activeAlerts.map(a=>a.properties?.event).filter(Boolean).slice(0,2).join(' • '):risk==='LOW'?'No active alerts • Thunder risk: Low':`Thunder risk: ${risk}`,hourHtml=periods.map(p=>`<div class="weatherHour"><b>${new Date(p.startTime).toLocaleTimeString([],{hour:'numeric'})}</b><span class="hourTemp">${p.temperature}°</span><span class="hourRainLabel">Rain</span><span class="hourRainValue">${p.probabilityOfPrecipitation?.value??0}%</span></div>`).join('');weatherBody.innerHTML=`<div class="weatherTop"><div class="weatherIcon">${weatherIconFor(condition)}</div><div><div class="weatherTemp">${temp}°</div><div class="weatherCondition">${escapeHtml(condition)}</div></div></div><div class="weatherStats"><div class="weatherStat"><span>Humidity</span><strong>${humidity}%</strong></div><div class="weatherStat"><span>Dew Point</span><strong>${dew}°</strong></div><div class="weatherStat"><span>Rain Chance</span><strong>${rain}%</strong></div><div class="weatherStat"><span>Thunder Risk</span><strong class="${riskTextClass}">${risk}</strong></div></div><div class="weatherAlert ${riskClass}">${escapeHtml(alertText)}</div><div class="weatherHours">${hourHtml}</div><div id="weatherVenue" class="weatherVenue">${escapeHtml(info.name)} • NOAA/NWS • Updated ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</div>`;scheduleSourceBadge.textContent='NOAA / NWS';scheduleSourceBadge.className='sourceBadge';}catch(error){if(requestId===weatherRequestId)weatherError(info,error.message)}}
+
+
+function formatDuration(ms){
+ ms=Math.max(0,ms);const total=Math.floor(ms/1000),days=Math.floor(total/86400),h=Math.floor(total%86400/3600),m=Math.floor(total%3600/60),sec=total%60;
+ return days?`${days}d ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:[h,m,sec].map(v=>String(v).padStart(2,'0')).join(':');
+}
+function setStatusPill(label,kind='upcoming'){eventStatusPill.textContent=label;eventStatusPill.className=`eventStatusPill ${kind}`}
+function normalizeTrackName(value=''){return cleanWeekendText(value).toLowerCase().replace(/international|motor|speedway|raceway|track|the/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function liveFeedIsUsable(feed){
+ if(!feed||selectedWeekendIndex!==currentWeekendIndex)return false;
+ const stamp=new Date(feed.time_of_day_os||'').getTime();if(!Number.isFinite(stamp)||Date.now()-stamp>LIVE_FEED_MAX_AGE_MS||stamp-Date.now()>5*60000)return false;
+ const expected=normalizeTrackName(currentStatusSession?.track||selectedPrimaryTrack),actual=normalizeTrackName(feed.track_name||'');
+ return !expected||!actual||expected.includes(actual)||actual.includes(expected)||expected.split(' ').some(w=>w.length>4&&actual.includes(w));
+}
+function flagPresentation(flag){
+ const map={1:['GREEN FLAG','live'],2:['CAUTION','yellow'],3:['RED FLAG','red'],4:['RED FLAG','red'],5:['WHITE FLAG','white'],8:['TRACK STATUS','upcoming'],9:['CHECKERED','checkered']};
+ return map[Number(flag)]||['LIVE RACE','live'];
+}
+function renderProductionStatus(){
+ const now=Date.now(),session=chooseStatusSession(currentOperationalSessions,now);currentStatusSession=session;
+ if(!session){setStatusPill('SCHEDULE TBD','offline');dashboardTrackName.textContent='EVENT STATUS UNAVAILABLE';dashboardSourceStatus.textContent='No published sessions for the selected weekend';return}
+ const state=sessionState(session,now),prefix=seriesShort(session),sessionTitle=`${prefix} ${session.sessionName}`.trim();
+ if(state==='live'&&session.sessionKind==='RACE'&&liveFeedIsUsable(latestLiveFeed)){
+  const feed=latestLiveFeed,[flagLabel,flagClass]=flagPresentation(feed.flag_state);setStatusPill(flagLabel,flagClass);
+  const lap=Number(feed.lap_number),total=Number(feed.laps_in_race),toGo=Number.isFinite(Number(feed.laps_to_go))?Number(feed.laps_to_go):(Number.isFinite(lap)&&Number.isFinite(total)?Math.max(0,total-lap):null);
+  dashboardTrackName.textContent=cleanWeekendText(feed.run_name)||sessionTitle;
+  const lapText=Number.isFinite(lap)&&Number.isFinite(total)?`Lap ${lap} / ${total}${Number.isFinite(toGo)?` • ${toGo} remaining`:''}`:'Live NASCAR timing';
+  const stage=Number(feed.stage?.stage_num);dashboardSourceStatus.textContent=`${lapText}${Number.isFinite(stage)?` • Stage ${stage}`:''} • ${cleanWeekendText(feed.track_name||session.track)} • Live feed`;
+  return;
+ }
+ if(state==='live'){
+  setStatusPill('HAPPENING NOW','live');dashboardTrackName.textContent=sessionTitle;
+  const remaining=(session.sessionEnd?.getTime()??(session.sessionDate.getTime()+sessionDurationMs(session)))-now;
+  dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • Estimated ${formatDuration(remaining)} remaining • Schedule mode`;
+ }else if(state==='upcoming'){
+  setStatusPill('NEXT EVENT','upcoming');dashboardTrackName.textContent=sessionTitle;
+  dashboardSourceStatus.innerHTML=`<div class="eventMetaDetails">${escapeHtml(session.track||selectedPrimaryTrack)} • ${escapeHtml(session.sessionDate.toLocaleDateString([],{weekday:'short',month:'long',day:'numeric'}))} at ${escapeHtml(session.sessionTime)}</div><div class="eventTopCountdownLabel">Starts in</div><div class="eventTopCountdown">${escapeHtml(formatDuration(session.sessionDate.getTime()-now))}</div>`;
+ }else{
+  setStatusPill(session.sessionKind==='RACE'?'RACE COMPLETE':'SESSION COMPLETE','complete');dashboardTrackName.textContent=sessionTitle;
+  dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • Completed according to published schedule`;
+ }
+}
+async function pollNascarLiveFeed(){
+ try{const response=await fetch(`${NASCAR_LIVE_FEED_URL}?_=${Date.now()}`,{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);latestLiveFeed=await response.json();latestLiveFeedReceivedAt=Date.now()}catch(_){/* Schedule status remains authoritative when live feed is unavailable. */}
+ renderProductionStatus();
+}
+
+
+function weekendSlotLabel(index){
+ return index===0?'CURRENT':index===1?'NEXT':'NEXT +2';
+}
+function weekendOptionLabel(item,index){
+ const title=cleanWeekendText(item?.post?.title?.rendered)||`Weekend ${index+1}`;
+ const firstDate=item.events.map(tryEventDate).filter(Boolean).sort((a,b)=>a-b)[0];
+ const dateLabel=firstDate?firstDate.toLocaleDateString([],{month:'short',day:'numeric'}):'DATE TBD';
+ return `${weekendSlotLabel(index)} • ${dateLabel} — ${title}`;
+}
+function populateWeekendSelect(){
+ weekendSelect.innerHTML=weekendPosts.map((item,index)=>`<option value="${index}">${escapeHtml(weekendOptionLabel(item,index))}</option>`).join('');
+ weekendSelect.value=String(selectedWeekendIndex);
+}
+function rememberSelectedWeekend(){
+ const id=weekendPosts[selectedWeekendIndex]?.post?.id;
+ if(id!=null)try{localStorage.setItem(WEEKEND_STORAGE_KEY,String(id))}catch(_){}
+}
+function selectWeekend(index,{remember=true}={}){
+ if(!weekendPosts.length)return;
+ selectedWeekendIndex=Math.max(0,Math.min(index,weekendPosts.length-1));
+ if(weekendSelect.options.length)weekendSelect.value=String(selectedWeekendIndex);
+ if(remember)rememberSelectedWeekend();
+ renderSelectedWeekend();
+}
+function renderSelectedWeekend(){
+ const item=weekendPosts[selectedWeekendIndex];if(!item)return;
+ const {post,events}=item;const title=cleanWeekendText(post?.title?.rendered)||'NASCAR Race Weekend';
+ if(!events.length){weekendBrowserTitle.textContent='Weekend Schedule';weekendPosition.textContent=weekendSlotLabel(selectedWeekendIndex);weekendSelect.value=String(selectedWeekendIndex);previousWeekendBtn.disabled=selectedWeekendIndex<=0;nextWeekendBtn.disabled=selectedWeekendIndex>=weekendPosts.length-1;weekendEventBrowser.innerHTML='<div class="timelineEmpty">Detailed event times have not been published in this NASCAR weekend post.</div>';activeFeaturedEvent=null;nextFeaturedDate=null;currentOperationalSessions=[];nextEventName.textContent='Schedule not published';nextEventTime.textContent='Choose NEXT when another published weekend is available';nextEventLogos.innerHTML='';renderProductionStatus();updateDashboardClock();return}
+ const dated=events.map(e=>({...e,parsedDate:tryEventDate(e)})).sort((a,b)=>(a.parsedDate?.getTime()??Infinity)-(b.parsedDate?.getTime()??Infinity));item.dated=dated;
+ const now=Date.now();currentOperationalSessions=buildOperationalSessions(dated);currentStatusSession=chooseStatusSession(currentOperationalSessions,now);
+ activeFeaturedEvent=currentStatusSession||dated.find(e=>eventState(e,now).key==='live')||dated.find(e=>e.parsedDate&&e.parsedDate.getTime()>now)||dated[dated.length-1];nextFeaturedDate=currentStatusSession?.sessionDate||activeFeaturedEvent?.parsedDate||null;
+ selectedPrimaryTrack=currentStatusSession?.track||activeFeaturedEvent?.track||dated.find(e=>e.track)?.track||title;
+ weekendBrowserTitle.textContent='Weekend Schedule';weekendPosition.textContent=weekendSlotLabel(selectedWeekendIndex);weekendSelect.value=String(selectedWeekendIndex);previousWeekendBtn.disabled=selectedWeekendIndex<=0;nextWeekendBtn.disabled=selectedWeekendIndex>=weekendPosts.length-1;
+ renderVenue(selectedPrimaryTrack);renderDaySchedules(dated);
+ const nextOperational=currentStatusSession;
+ nextEventName.textContent=nextOperational?`${seriesShort(nextOperational)} ${nextOperational.sessionName}`.trim():(activeFeaturedEvent?.name||'No featured event');
+ nextEventTime.textContent=nextOperational?[nextOperational.sessionDate?nextOperational.sessionDate.toLocaleDateString([],{weekday:'short',month:'long',day:'numeric'}):nextOperational.date,nextOperational.sessionTime,nextOperational.track].filter(Boolean).join(' • '):'No event details';nextEventLogos.innerHTML=tvBroadcastLogos(nextOperational?.networks||activeFeaturedEvent?.networks||[]).map(logoHtml).join('');
+ renderProductionStatus();updateDashboardClock();
+}
+async function loadWeekendDashboard(){
+ const fallback=cupFallbackWeekends();
+ let detailed=[];
+ try{
+  const response=await fetch(WEEKEND_LIST_URL,{cache:'no-store'});
+  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  const posts=await response.json();
+  if(Array.isArray(posts))detailed=posts.map(post=>({post,events:parseFeaturedWeekendEvents(post.content?.rendered||'',post)})).filter(item=>item.events.length);
+ }catch(error){dashboardSourceStatus.textContent=`Season schedule active • detailed NASCAR weekend feed unavailable: ${cleanWeekendText(error.message)}`}
+ weekendPosts=fallback.map(item=>mergeDetailedWeekend(item,detailed));
+ currentWeekendIndex=0;
+ let savedId=null;try{savedId=localStorage.getItem(WEEKEND_STORAGE_KEY)}catch(_){}
+ const savedIndex=savedId?weekendPosts.findIndex(item=>String(item.post?.id)===savedId):-1;
+ selectedWeekendIndex=savedIndex>=0?savedIndex:0;
+ populateWeekendSelect();renderSelectedWeekend();renderSeasonProgress();
+ if(!detailed.length&&dashboardSourceStatus.textContent.startsWith('Automatic'))dashboardSourceStatus.textContent='Official 2026 Cup season schedule • detailed weekend schedule not yet published';
+ scheduleSourceBadge.textContent='NOAA / NWS';scheduleSourceBadge.className='sourceBadge';
+}
+previousWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex-1));nextWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex+1));weekendSelect.addEventListener('change',()=>selectWeekend(Number(weekendSelect.value)));currentWeekendBtn.addEventListener('click',()=>selectWeekend(currentWeekendIndex));
+function updateDashboardClock(){
+ const now=new Date();dashboardClock.innerHTML=now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'<small>LOCAL DEVICE TIME</small>';
+ currentStatusSession=chooseStatusSession(currentOperationalSessions,Date.now());
+ if(currentStatusSession){activeFeaturedEvent=currentStatusSession;nextFeaturedDate=currentStatusSession.sessionDate||null}
+ renderProductionStatus();
+ if(!currentStatusSession||!currentStatusSession.sessionDate){sessionCountdownStatus.textContent='Schedule status';sessionCountdown.textContent='DATE TBD';return}
+ const state=sessionState(currentStatusSession,Date.now()),start=currentStatusSession.sessionDate.getTime(),end=currentStatusSession.sessionEnd?.getTime()??start+sessionDurationMs(currentStatusSession),current=Date.now();
+ let remaining,label;if(state==='upcoming'){remaining=start-current;label='Starts in'}else if(state==='live'){remaining=end-current;label='Happening now • estimated time remaining'}else{remaining=0;label='Event completed'}
+ sessionCountdownStatus.textContent=label;sessionCountdown.textContent=remaining?formatDuration(remaining):'00:00:00';
+}
+renderSeasonProgress();loadWeekendDashboard();updateDashboardClock();pollNascarLiveFeed();setInterval(updateDashboardClock,1000);setInterval(pollNascarLiveFeed,5000);setInterval(loadWeekendDashboard,15*60*1000);setInterval(()=>{if(currentWeatherInfo)loadWeatherFor(currentWeatherInfo)},10*60*1000);
+infoDashboard.classList.add('visible');
+infoDashboard.setAttribute('aria-hidden','false');
+})();
+</script>
+</body>
+</html>
 
