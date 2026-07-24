@@ -338,7 +338,8 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
   white-space:nowrap;
 }
 .dashboardClock small{margin-top:5px;font-size:9px}
-.dashboardGrid{height:calc(100vh - 205px)}
+/* Keep the compact header while reserving room for the full Cup season strip and its horizontal scrollbar. */
+.dashboardGrid{height:calc(100vh - 292px)}
 
 @media(max-width:1150px){
   .dashboardTop>div:first-child{
