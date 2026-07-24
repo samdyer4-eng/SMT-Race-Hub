@@ -1,1 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMT Nascar Pick 'EM Live</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:visible;background:#000;font-family:Arial,sans-serif;color:#fff}*{box-sizing:border-box}
+#fx,#carsLayer{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.carGroup{position:fixed;left:0;top:0;width:145px;will-change:transform}.carImg{display:block;width:100%;height:auto;object-fit:contain;filter:drop-shadow(0 7px 8px rgba(255,255,255,.12))}
+.tag{position:absolute;left:50%;bottom:calc(100% + 20px);transform:translateX(-50%);font:700 9px/1 Arial,sans-serif;letter-spacing:.5px;color:#fff;background:#151515;border:1px solid rgba(255,255,255,.85);border-radius:4px;padding:5px 8px;white-space:nowrap;max-width:none;width:max-content; overflow:visible;text-overflow:ellipsis}.tag:after{content:"";position:absolute;left:50%;top:100%;width:1px;height:20px;background:rgba(255,255,255,.85)}.tag:before{content:"";position:absolute;left:calc(50% - 3px);top:calc(100% + 17px);width:6px;height:6px;border-right:1px solid rgba(255,255,255,.85);border-bottom:1px solid rgba(255,255,255,.85);transform:rotate(45deg)}
+.positionMove{display:inline-block;margin-left:6px;font-weight:900;opacity:1;transition:opacity 1s ease}
+.positionMove.up{color:#43ff72;text-shadow:0 0 7px rgba(67,255,114,.55)}
+.positionMove.down{color:#ff5656;text-shadow:0 0 7px rgba(255,86,86,.55)}
+.positionMove.fading{opacity:0}
+.tag.moveUp{border-color:#43ff72;box-shadow:0 0 14px rgba(67,255,114,.38)}
+.tag.moveDown{border-color:#ff5656;box-shadow:0 0 14px rgba(255,86,86,.38)}
 
+/* Running-order leader treatment */
+.carGroup.leaderCar .carImg{
+  filter:drop-shadow(0 0 10px rgba(255,216,74,.55)) drop-shadow(0 7px 8px rgba(255,255,255,.12));
+}
+.tag.leaderTag{
+  border-color:#ffd84a;
+  color:#fff7c2;
+  box-shadow:0 0 13px rgba(255,216,74,.48);
+}
+.tag.leaderTag:after{background:#ffd84a}
+.tag.leaderTag:before{border-right-color:#ffd84a;border-bottom-color:#ffd84a}
+.tag.leaderTag.moveUp{border-color:#43ff72;box-shadow:0 0 14px rgba(67,255,114,.38)}
+.tag.leaderTag.moveDown{border-color:#ff5656;box-shadow:0 0 14px rgba(255,86,86,.38)}
+
+#panel{position:fixed;left:18px;right:18px;bottom:18px;z-index:20;padding:10px 12px;border-radius:12px;background:rgba(25,25,25,.9);backdrop-filter:blur(8px);transition:opacity .25s}#panel.hidden{opacity:0;pointer-events:none}#controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,label,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;color:#fff;cursor:pointer;font-size:14px}button:hover,label:hover{background:#444}input[type=file]{display:none}input[type=range]{width:105px}.count{min-width:22px;text-align:center}
+#liveModeBtn{min-width:170px;padding:12px 22px;border:2px solid #f2f2f2;background:#f2f2f2;color:#111;font:900 17px/1 Arial,sans-serif;letter-spacing:.7px;box-shadow:0 0 10px rgba(255,255,255,.18)}#liveModeBtn:hover{background:#fff;border-color:#fff;box-shadow:0 0 15px rgba(255,255,255,.28)}#liveModeBtn.active{background:#19a847;color:#fff;border-color:#a8ffba;box-shadow:0 0 18px rgba(60,255,105,.5)}#screensaverModeBtn{order:2}.setupControls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-left:auto;padding-left:14px;border-left:1px solid rgba(255,255,255,.18)}.setupControls label{white-space:nowrap}
+#namesPanel{display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.16);max-height:40vh;overflow:auto}#namesPanel.open{display:block}#nameGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.nameRow{display:flex;align-items:center;gap:8px}.nameRow span{width:48px;font-size:12px;opacity:.75}.nameRow input{width:100%;min-width:0;border:1px solid #555;border-radius:7px;background:#111;color:#fff;padding:7px 8px}.small{font-size:12px;opacity:.75}.modeBtn.active,.driveBtn.active{background:#f1f1f1;color:#111}#liveStatus{font-size:12px;opacity:.8;min-width:120px}#liveStatus.ok{color:#7dff9b}#liveStatus.error{color:#ff8a8a}
+
+/* Live scoring pylon */
+#scoringPylon{
+  position:fixed;
+  left:18px;
+  top:18px;
+  z-index:15;
+  width:220px;
+  max-height:calc(100vh - 36px);
+  overflow:hidden;
+  border:2px solid var(--flag-color, rgba(80,255,110,.95));
+  border-radius:9px;
+  background:linear-gradient(180deg,rgba(15,15,15,.97),rgba(2,2,2,.94));
+  box-shadow:0 0 18px var(--flag-glow, rgba(0,255,70,.22)),0 8px 30px rgba(0,0,0,.6);
+  opacity:0;
+  transform:translateX(-115%);
+  pointer-events:none;
+  transition:opacity .25s ease,transform .3s ease;
+}
+#scoringPylon.visible{opacity:1;transform:translateX(0)}
+
+@property --rim-angle{
+  syntax:'<angle>';
+  inherits:false;
+  initial-value:0deg;
+}
+@keyframes rimSweepOnce{
+  0%{
+    --rim-angle:0deg;
+    opacity:.35;
+    filter:drop-shadow(0 0 3px var(--flag-color,#35ff62));
+  }
+  15%{
+    opacity:1;
+    filter:drop-shadow(0 0 10px var(--flag-color,#35ff62));
+  }
+  80%{
+    opacity:1;
+    filter:drop-shadow(0 0 10px var(--flag-color,#35ff62));
+  }
+  100%{
+    --rim-angle:360deg;
+    opacity:.25;
+    filter:drop-shadow(0 0 3px var(--flag-color,#35ff62));
+  }
+}
+@keyframes rimSweepContinuous{
+  from{--rim-angle:0deg}
+  to{--rim-angle:360deg}
+}
+#scoringPylon::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+  border-radius:7px;
+  padding:3px;
+  background:conic-gradient(
+    from var(--rim-angle),
+    transparent 0deg 26deg,
+    var(--flag-color,#35ff62) 26deg 52deg,
+    transparent 52deg 78deg,
+    var(--flag-color,#35ff62) 78deg 104deg,
+    transparent 104deg 130deg,
+    var(--flag-color,#35ff62) 130deg 156deg,
+    transparent 156deg 182deg,
+    var(--flag-color,#35ff62) 182deg 208deg,
+    transparent 208deg 234deg,
+    var(--flag-color,#35ff62) 234deg 260deg,
+    transparent 260deg 286deg,
+    var(--flag-color,#35ff62) 286deg 312deg,
+    transparent 312deg 338deg,
+    var(--flag-color,#35ff62) 338deg 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  opacity:0;
+}
+#scoringPylon.rimPulse::before{
+  opacity:1;
+  background:conic-gradient(
+    from var(--rim-angle),
+    var(--flag-color,#35ff62) 0deg 42deg,
+    transparent 42deg 70deg,
+    var(--flag-color,#35ff62) 70deg 112deg,
+    transparent 112deg 140deg,
+    var(--flag-color,#35ff62) 140deg 182deg,
+    transparent 182deg 210deg,
+    var(--flag-color,#35ff62) 210deg 252deg,
+    transparent 252deg 280deg,
+    var(--flag-color,#35ff62) 280deg 322deg,
+    transparent 322deg 360deg
+  );
+  animation:rimSweepOnce 10s ease-in-out 1;
+}
+#scoringPylon.checkered::before{
+  opacity:1;
+  background:repeating-conic-gradient(
+    from var(--rim-angle),
+    #fff 0deg 18deg,
+    transparent 18deg 36deg
+  );
+  animation:rimSweepContinuous 15s linear infinite;
+}
+
+#scoringPylon.unlocked{cursor:move;pointer-events:auto}
+#scoringPylon.locked{cursor:default;pointer-events:none}
+#scoringPylon.unlocked .pylonTitle{cursor:move}
+#pylonLockBtn.active{background:#f1f1f1;color:#111}
+.pylonTitle{
+  padding:10px 12px 8px;
+  text-align:center;
+  font:900 14px/1 Arial,sans-serif;
+  letter-spacing:1px;
+  color:#fff;
+  border-bottom:1px solid rgba(255,255,255,.3);
+  background:linear-gradient(180deg,#303030,#111);
+}
+.pylonSub{
+  padding:5px 9px;
+  text-align:center;
+  font:700 10px/1 Arial,sans-serif;
+  letter-spacing:.7px;
+  color:var(--flag-color, #b7ffbf);
+  border-bottom:1px solid rgba(255,255,255,.22);
+  background:#050505;
+}
+#pylonRows{overflow:hidden}
+.pylonRow{
+  display:grid;
+  grid-template-columns:32px minmax(0,1fr);
+  align-items:center;
+  min-height:24px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg,rgba(45,45,45,.94),rgba(15,15,15,.94));
+}
+.pylonRow:last-child{border-bottom:0}
+.pylonRank{
+  align-self:stretch;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font:900 12px/1 Arial,sans-serif;
+  color:#fff;
+  background:rgba(0,0,0,.45);
+  border-right:1px solid rgba(255,255,255,.18);
+  gap:1px;
+}
+.pylonRankNum{font-size:14px;line-height:1}.pylonRankSuffix{font-size:8px;line-height:1;text-transform:lowercase;opacity:.88;margin-top:-5px;margin-left:1px}
+.pylonText{
+  min-width:0;
+  padding:3px 5px;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.pylonParticipant{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font:900 11px/1.05 Arial,sans-serif;
+  letter-spacing:.15px;
+  color:#fff;
+}
+.pylonMove{float:right;margin-left:8px;font:900 9px/1 Arial,sans-serif;opacity:1;transition:opacity 1s ease}
+.pylonMove.up{color:#43ff72;text-shadow:0 0 7px rgba(67,255,114,.5)}
+.pylonMove.down{color:#ff5656;text-shadow:0 0 7px rgba(255,86,86,.5)}
+.pylonMove.fading{opacity:0}
+.pylonRow.moveUp{box-shadow:inset 3px 0 0 #43ff72}
+.pylonRow.moveDown{box-shadow:inset 3px 0 0 #ff5656}
+.pylonDriver{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  margin-top:2px;
+  font:700 10px/1 Arial,sans-serif;
+  letter-spacing:.25px;
+  color:#e0e0e0;
+}
+@media (max-height:720px){
+  #scoringPylon{width:225px}
+  .pylonRow{min-height:20px}
+  .pylonParticipant{font-size:10px}
+  .pylonDriver{display:none}
+}
+
+
+/* Season standings crawl */
+#seasonCrawl{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:13;
+  height:42px;
+  overflow:hidden;
+  border-top:2px solid #d8d8d8;
+  background:linear-gradient(180deg,#383838,#1a1a1a);
+  box-shadow:0 -5px 18px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease;
+}
+#seasonCrawl.visible{opacity:1}
+#seasonCrawlLabel{
+  position:fixed;
+  left:0;
+  bottom:42px;
+  z-index:14;
+  height:30px;
+  display:flex;
+  align-items:center;
+  padding:0 15px;
+  border:1px solid #d8d8d8;
+  border-bottom:0;
+  border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg,#5a5a5a,#2d2d2d);
+  box-shadow:0 -4px 14px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12);
+  color:#fff;
+  font:900 12px/1 Arial,sans-serif;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease;
+}
+#seasonCrawlLabel.visible{opacity:1}
+#seasonCrawlTrack{
+  position:absolute;
+  top:0;
+  left:0;
+  height:42px;
+  display:flex;
+  align-items:center;
+  width:max-content;
+  white-space:nowrap;
+  will-change:transform;
+  animation:seasonCrawlMove var(--crawl-duration,55s) linear infinite;
+}
+.seasonCrawlTitle{
+  display:inline-flex;
+  align-items:center;
+  height:42px;
+  padding:0 14px;
+  margin-right:0;
+  font:900 12px/1 Arial,sans-serif;
+  letter-spacing:1.1px;
+  color:#111;
+  background:linear-gradient(180deg,#3a3a3a,#1a1a1a);
+  border-right:2px solid rgba(200,200,200,.45);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+  text-transform:uppercase;
+}
+.seasonCrawlItem{
+  display:inline-flex;
+  align-items:center;
+  height:42px;
+  padding:0 14px;
+  margin-right:8px;
+  font:900 13px/1 Arial,sans-serif;
+  letter-spacing:.25px;
+  color:#fff;
+  border-right:1px solid rgba(255,255,255,.18);
+  background:linear-gradient(180deg,rgba(45,45,45,.92),rgba(20,20,20,.92));
+}
+.seasonCrawlName{
+  display:inline;
+  color:#fff;
+}
+.seasonCrawlPoints{
+  display:inline;
+  margin-left:8px;
+  color:#d8d8d8;
+  font-weight:900;
+}
+.seasonCrawlRank{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:40px;
+  height:22px;
+  margin-right:8px;
+  padding:0 6px;
+  color:#fff;
+  background:linear-gradient(180deg,#6a6a6a,#404040);
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:3px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10);
+  letter-spacing:.3px;
+}
+.seasonCrawlRankNum{font:900 13px/1 Arial,sans-serif}
+.seasonCrawlRankSuffix{font:900 8px/1 Arial,sans-serif;text-transform:lowercase;opacity:.88;margin-top:-5px;margin-left:1px}
+@keyframes seasonCrawlMove{
+  from{transform:translateX(0)}
+  to{transform:translateX(-50%)}
+}
+.seasonCrawlGroup{
+  display:inline-flex;
+  align-items:center;
+  flex:none;
+  padding-right:12px;
+}
+
+
+/* Mobile layout */
+@media (max-width:700px){
+  html,body{overflow:hidden}
+
+  #scoringPylon{
+    left:8px !important;
+    right:auto !important;
+    top:8px !important;
+    width:min(58vw,300px) !important;
+    max-height:calc(100vh - 52px) !important;
+    transform:none !important;
+    overflow:hidden;
+  }
+
+  .pylonTitle{
+    padding:8px 9px 7px;
+    font-size:12px;
+  }
+
+  .pylonSub{
+    padding:4px 7px;
+    font-size:9px;
+  }
+
+  .pylonRow{min-height:22px}
+  .pylonRank{font-size:10px}
+  .pylonParticipant{font-size:10px}
+  .pylonDriver{display:block;font-size:8px}
+
+  #seasonCrawl{height:34px}
+  #seasonCrawlLabel{bottom:34px;height:26px;padding:0 11px;font-size:10px}
+  #seasonCrawlTrack,.seasonCrawlTitle,.seasonCrawlItem{height:34px}
+  .seasonCrawlTitle,.seasonCrawlItem{font-size:10px}
+  .seasonCrawlTitle{padding:0 11px}
+  .seasonCrawlItem{padding:0 9px;margin-right:6px}
+  .seasonCrawlRank{min-width:36px;height:20px;margin-right:6px;padding:0 5px}.seasonCrawlRankNum{font-size:12px}.seasonCrawlRankSuffix{font-size:7px}
+  .seasonCrawlName{width:auto}
+  .seasonCrawlPoints{margin-left:6px;font-size:10px}
+
+  #panel{
+    left:6px;
+    right:6px;
+    bottom:36px;
+    padding:8px;
+    max-height:42vh;
+    overflow:auto;
+  }
+
+  #controls{gap:6px}
+  button,label,select{padding:7px 9px;font-size:12px}
+  input[type=range]{width:85px}
+}
+
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas><div id="carsLayer"></div>
+<div id="scoringPylon" aria-hidden="true"><div class="pylonTitle">LIVE RUNNING ORDER</div><div id="pylonSub" class="pylonSub">WAITING FOR DATA</div><div id="pylonRows"></div></div>
+<div id="seasonCrawlLabel" aria-hidden="true">2026 PICK&#39;EM STANDINGS</div><div id="seasonCrawl" aria-hidden="true"><div id="seasonCrawlTrack"></div></div>
+<div id="panel"><div id="controls">
+<button id="liveModeBtn" class="modeBtn">▶ GO LIVE</button><button id="screensaverModeBtn" class="modeBtn active">Screensaver</button>
+<span>Flag</span>
+<select id="flagModeSelect" title="Use LIVE for NASCAR data or choose a manual test color">
+  <option value="LIVE">LIVE</option>
+  <option value="GREEN">GREEN</option>
+  <option value="YELLOW">YELLOW</option>
+  <option value="RED">RED</option>
+  <option value="CHECKERED">CHECKERED</option>
+  <option value="COLD">COLD</option>
+  <option value="WARM">WARM</option>
+</select><button id="carsToggleBtn">Show Cars</button><button id="randomDriveBtn" class="driveBtn active">Random Drive</button><button id="orderDriveBtn" class="driveBtn">Running Order</button><button id="pylonLockBtn">Unlock Pylon</button><span id="liveStatus">Manual names</span><button id="namesBtn">Driver Names</button><button id="fullscreenBtn">Fullscreen</button><button id="hideBtn">Hide controls</button><span class="small">Press H to show/hide controls</span>
+<div class="setupControls"><label for="fileInput">Choose car PNG</label><input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp">
+<span>Cars</span><input id="countRange" type="range" min="1" max="25" value="8"><span id="countValue" class="count">8</span>
+<span>Size</span><input id="sizeRange" type="range" min="70" max="280" value="220">
+<span>Speed</span><input id="speedRange" type="range" min="80" max="700" value="140">
+<span>Smoke</span><input id="smokeRange" type="range" min="0" max="100" value="50">
+<span>Tag</span><input id="tagRange" type="range" min="7" max="16" value="14"></div>
+</div><div id="namesPanel"><div id="nameGrid"></div></div></div>
+<script>
+(()=>{
+const defaultSrc='SMTNascarLogoNOBG.png';
+const layer=document.getElementById('carsLayer'),canvas=document.getElementById('fx'),ctx=canvas.getContext('2d'),fileInput=document.getElementById('fileInput'),countRange=document.getElementById('countRange'),countValue=document.getElementById('countValue'),sizeRange=document.getElementById('sizeRange'),speedRange=document.getElementById('speedRange'),smokeRange=document.getElementById('smokeRange'),tagRange=document.getElementById('tagRange'),panel=document.getElementById('panel'),namesPanel=document.getElementById('namesPanel'),namesBtn=document.getElementById('namesBtn'),nameGrid=document.getElementById('nameGrid'),screensaverModeBtn=document.getElementById('screensaverModeBtn'),liveModeBtn=document.getElementById('liveModeBtn'),flagModeSelect=document.getElementById('flagModeSelect'),carsToggleBtn=document.getElementById('carsToggleBtn'),randomDriveBtn=document.getElementById('randomDriveBtn'),orderDriveBtn=document.getElementById('orderDriveBtn'),pylonLockBtn=document.getElementById('pylonLockBtn'),liveStatus=document.getElementById('liveStatus'),scoringPylon=document.getElementById('scoringPylon'),pylonRows=document.getElementById('pylonRows'),pylonSub=document.getElementById('pylonSub'),seasonCrawl=document.getElementById('seasonCrawl'),seasonCrawlLabel=document.getElementById('seasonCrawlLabel'),seasonCrawlTrack=document.getElementById('seasonCrawlTrack');
+const savedNames=JSON.parse(localStorage.getItem('sportvisionDriverNames')||'null');
+let imageSrc=defaultSrc,cars=[],particles=[],marks=[],last=performance.now(),hideTimer,names=savedNames||Array.from({length:25},(_,i)=>i===0?'SPORTVISION':`CAR ${i+1}`);
+const LIVE_URL='https://script.google.com/macros/s/AKfycbyiI_sB7xGtBGWvojve3YhYDOTgAOmcF6grvpBC68yeVuZcxyTHHcjz97Bo5jtX3UVd/exec';let mode='screensaver',liveRows=[],liveTimer=null,manualCarCount=+countRange.value,liveInitialized=false,driveMode='random',paradeHead=innerWidth+120;
+const MOVE_VISIBLE_MS=10000,MOVE_FADE_MS=1000;
+let carsVisible=false;
+let previousRanks=new Map(),positionMoves=new Map(),movementReady=false;
+let latestRaceStatus=null,latestRaceUpdatedAt=null,lastEffectiveFlagKey=null;
+const savedFlagMode=localStorage.getItem('sportvisionFlagMode')||'LIVE';
+flagModeSelect.value=savedFlagMode;
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight}addEventListener('resize',resize);resize();
+function lane(h){const min=Math.max(55,innerHeight*.10),max=Math.max(min,innerHeight-h-35);return min+Math.random()*(max-min)}
+function orderedLane(i,h){const upper=Math.max(85,innerHeight*.28),lower=Math.min(innerHeight-h-55,innerHeight*.62);return i%2===0?upper:lower}
+function buildNameInputs(){nameGrid.innerHTML='';names.forEach((name,i)=>{const row=document.createElement('label');row.className='nameRow';const num=document.createElement('span');num.textContent=`Car ${i+1}`;const input=document.createElement('input');input.type='text';input.value=name;input.maxLength=28;input.addEventListener('input',()=>{names[i]=input.value;localStorage.setItem('sportvisionDriverNames',JSON.stringify(names));const tag=cars[i]?.el.querySelector('.tag');if(tag&&mode==='screensaver'){tag.textContent=input.value;tag.style.display=input.value.trim()?'block':'none'}});row.append(num,input);nameGrid.appendChild(row)})}
+function ordinal(n){const v=n%100;if(v>=11&&v<=13)return n+'th';return n+(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th')}
+function ordinalParts(n){n=Number(n)||0;const v=n%100;const suffix=(v>=11&&v<=13)?'th':(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th');return {number:n,suffix}}
+function lastName(full){const parts=String(full||'').trim().split(/\s+/);return parts[parts.length-1]||''}
+function participantKey(row){return String(row&&row.participant||'').trim().toLowerCase()}
+function baseLiveLabel(row){return `${ordinal(Number(row.rank))} - ${row.participant} - ${lastName(row.driver)}`}
+function movementFor(row){
+ const move=positionMoves.get(participantKey(row));
+ if(!move||Date.now()>=move.expiresAt)return null;
+ return move;
+}
+function labelForIndex(i){if(mode==='live'&&liveRows[i])return baseLiveLabel(liveRows[i]);return names[i]||''}
+function renderCarTag(tag,row){
+ const base=baseLiveLabel(row);
+ const move=movementFor(row);
+ const isLeader=Number(row.rank)===1;
+ tag.classList.remove('moveUp','moveDown','leaderTag');
+ tag.closest('.carGroup')?.classList.toggle('leaderCar',isLeader);
+ if(isLeader)tag.classList.add('leaderTag');
+ tag.innerHTML='';
+ tag.append(document.createTextNode(base));
+ if(move){
+  const span=document.createElement('span');
+  span.className=`positionMove ${move.delta>0?'up':'down'}`;
+  span.textContent=`${move.delta>0?'▲':'▼'} ${Math.abs(move.delta)}`;
+  tag.appendChild(span);
+  tag.classList.add(move.delta>0?'moveUp':'moveDown');
+ }
+ tag.style.display=base.trim()?'block':'none';
+}
+function updatePositionMoves(rows){
+ const now=Date.now();
+ if(!movementReady){
+  previousRanks=new Map(rows.map(r=>[participantKey(r),Number(r.rank)]));
+  movementReady=true;
+  return;
+ }
+ rows.forEach(r=>{
+  const key=participantKey(r),rank=Number(r.rank),oldRank=previousRanks.get(key);
+  if(Number.isFinite(oldRank)&&Number.isFinite(rank)&&oldRank!==rank){
+   positionMoves.set(key,{delta:oldRank-rank,expiresAt:now+MOVE_VISIBLE_MS});
+  }
+  previousRanks.set(key,rank);
+ });
+ for(const [key,move] of positionMoves){
+  if(now>=move.expiresAt+MOVE_FADE_MS)positionMoves.delete(key);
+ }
+}
+function buildCars(){layer.innerHTML='';cars=[];countValue.textContent=countRange.value;const n=+countRange.value,w=+sizeRange.value,gap=innerWidth/Math.max(1,n);paradeHead=innerWidth+120;for(let i=0;i<n;i++){const el=document.createElement('div');el.className='carGroup';el.style.width=w+'px';const img=document.createElement('img');img.className='carImg';img.src=imageSrc;const tag=document.createElement('div');tag.className='tag';const text=labelForIndex(i);tag.textContent=text;tag.style.fontSize=tagRange.value+'px';if(mode==='live'&&liveRows[i])renderCarTag(tag,liveRows[i]);else if(!text.trim())tag.style.display='none';el.append(img,tag);layer.appendChild(el);cars.push({el,x:driveMode==='order'?paradeHead+i*(w+20):innerWidth+w+120+i*gap,y:driveMode==='order'?orderedLane(i,w*.35):lane(w*.35),f:.82+Math.random()*.36,p:Math.random()*6.28})}}
+function smoke(x,y,amt,f){if(Math.random()>amt/100)return;const n=Math.random()<.4?2:1;for(let i=0;i<n;i++)particles.push({x,y,vx:18+Math.random()*40+f*10,vy:-8+Math.random()*16,r:4+Math.random()*8,a:.15+Math.random()*.18,l:0})}
+function mark(x,y){marks.push({x,y,l:0,len:14+Math.random()*20});if(marks.length>1000)marks.shift()}
+function draw(dt){ctx.clearRect(0,0,canvas.width,canvas.height);for(let i=marks.length-1;i>=0;i--){const m=marks[i];m.l+=dt;const a=Math.max(0,.20-m.l*.018);if(!a){marks.splice(i,1);continue}ctx.strokeStyle=`rgba(110,110,110,${a})`;ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x-m.len,m.y);ctx.stroke()}for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.l+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.r+=9*dt;p.a*=Math.pow(.42,dt);if(p.a<.01||p.l>3){particles.splice(i,1);continue}const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);g.addColorStop(0,`rgba(220,220,220,${p.a})`);g.addColorStop(1,'rgba(150,150,150,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill()}}
+function animate(now){const dt=Math.min(.04,(now-last)/1000);last=now;const base=+speedRange.value,amt=+smokeRange.value,w=+sizeRange.value;if(driveMode==='order'){
+ const normalSpacing=w+25;
+ const loopGap=w+150;
+ cars.forEach(c=>{c.x-=base*dt});
+ let rightmost=Math.max(...cars.map(c=>c.x));
+ cars.forEach((c,i)=>{
+  const cw=c.el.offsetWidth||w,ch=c.el.offsetHeight||w*.35;
+  if(c.x<-cw-120){
+   const isLeader=mode==='live'&&liveRows[i]&&Number(liveRows[i].rank)===1;
+   c.x=rightmost+(isLeader?loopGap:normalSpacing);
+   rightmost=c.x;
+  }
+  c.y=orderedLane(i,ch);
+  c.el.style.transform=`translate3d(${c.x}px,${c.y+Math.sin(now/170+c.p)*.8}px,0)`;
+  const rx=c.x+cw*.92,ry=c.y+ch*.82;
+  if(carsVisible&&c.x>-cw&&c.x<innerWidth+cw){smoke(rx,ry,amt,1);if(Math.random()<.45)mark(rx-cw*.1,ry+7)}
+ });
+}else{for(const c of cars){c.x-=base*c.f*dt;const cw=c.el.offsetWidth||w,ch=c.el.offsetHeight||w*.35;c.el.style.transform=`translate3d(${c.x}px,${c.y+Math.sin(now/140+c.p)*1.2}px,0)`;const rx=c.x+cw*.92,ry=c.y+ch*.82;if(carsVisible&&c.x>-cw&&c.x<innerWidth+cw){smoke(rx,ry,amt,c.f);if(Math.random()<.5)mark(rx-cw*.1,ry+7)}if(c.x<-cw-100){c.x=innerWidth+cw+100+Math.random()*innerWidth*.55;c.y=lane(ch);c.f=.82+Math.random()*.36}}}draw(dt);requestAnimationFrame(animate)}
+fileInput.addEventListener('change',()=>{const f=fileInput.files&&fileInput.files[0];if(!f)return;const u=URL.createObjectURL(f),probe=new Image();probe.onload=()=>{imageSrc=u;buildCars()};probe.src=u});countRange.addEventListener('input',()=>{if(mode==='screensaver')manualCarCount=+countRange.value;buildCars()});sizeRange.addEventListener('input',()=>cars.forEach(c=>c.el.style.width=sizeRange.value+'px'));tagRange.addEventListener('input',()=>document.querySelectorAll('.tag').forEach(t=>t.style.fontSize=tagRange.value+'px'));namesBtn.addEventListener('click',()=>namesPanel.classList.toggle('open'));
+carsToggleBtn.addEventListener('click',()=>{
+ carsVisible=!carsVisible;
+ layer.style.display=carsVisible?'':'none';
+ carsToggleBtn.textContent=carsVisible?'Hide Cars':'Show Cars';
+});
+
+
+
+function flagInfo(flagState){
+ const state =
+  typeof flagState === 'string' &&
+  ['COLD','WARM'].includes(flagState.toUpperCase())
+   ? flagState.toUpperCase()
+   : Number(flagState)||0;
+ const map={
+  1:{name:'GREEN',color:'#35ff62',glow:'rgba(53,255,98,.28)'},
+  2:{name:'YELLOW',color:'#ffe438',glow:'rgba(255,228,56,.28)'},
+  3:{name:'RED',color:'#ff4040',glow:'rgba(255,64,64,.30)'},
+  5:{name:'WHITE',color:'#ffffff',glow:'rgba(255,255,255,.25)'},
+  8:{name:'FLAG 8',color:'#b76cff',glow:'rgba(183,108,255,.30)'},
+  9:{name:'CHECKERED',color:'#ffffff',glow:'rgba(255,255,255,.32)'},
+  COLD:{name:'COLD',color:'#39bfff',glow:'rgba(57,191,255,.34)'},
+  WARM:{name:'WARM',color:'#b76cff',glow:'rgba(183,108,255,.34)'}
+ };
+ return map[state]||{name:state?`FLAG ${state}`:'LIVE',color:'#35ff62',glow:'rgba(53,255,98,.28)'};
+}
+
+function triggerFlagTransition(){
+ scoringPylon.classList.remove('rimPulse');
+ void scoringPylon.offsetWidth;
+ scoringPylon.classList.add('rimPulse');
+ setTimeout(()=>scoringPylon.classList.remove('rimPulse'),10200);
+}
+
+function updateRaceStatus(raceStatus,updatedAt){
+ latestRaceStatus=raceStatus||latestRaceStatus||{};
+ latestRaceUpdatedAt=updatedAt||latestRaceUpdatedAt||Date.now();
+
+ const status=latestRaceStatus||{};
+ const selected=flagModeSelect.value||'LIVE';
+
+ let flag;
+ if(selected==='LIVE'){
+  flag=flagInfo(status.flagState);
+ }else if(selected==='GREEN'){
+  flag=flagInfo(1);
+ }else if(selected==='YELLOW'){
+  flag=flagInfo(2);
+ }else if(selected==='RED'){
+  flag=flagInfo(3);
+ }else if(selected==='CHECKERED'){
+  flag=flagInfo(9);
+ }else{
+  flag=flagInfo(selected);
+ }
+
+ const isCheckered=selected==='CHECKERED'||(selected==='LIVE'&&Number(status.flagState)===9);
+ const effectiveFlagKey=selected==='LIVE'?`LIVE:${Number(status.flagState)||0}`:selected;
+
+ scoringPylon.classList.toggle('checkered',isCheckered);
+
+ if(lastEffectiveFlagKey!==null&&effectiveFlagKey!==lastEffectiveFlagKey&&!isCheckered){
+  triggerFlagTransition();
+ }
+ lastEffectiveFlagKey=effectiveFlagKey;
+
+ scoringPylon.style.setProperty('--flag-color',flag.color);
+ scoringPylon.style.setProperty('--flag-glow',flag.glow);
+
+ const lap=Number(status.lapNumber)||0;
+ const total=Number(status.lapsInRace)||0;
+ const toGo=Number(status.lapsToGo)||0;
+
+ const parts=[flag.name];
+ if(selected!=='LIVE')parts.push('SPOOF');
+ if(lap&&total)parts.push(`LAP ${lap} / ${total}`);
+ else if(lap)parts.push(`LAP ${lap}`);
+ if(toGo)parts.push(`${toGo} TO GO`);
+
+ if(parts.length===(selected==='LIVE'?1:2)){
+  const t=new Date(latestRaceUpdatedAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  parts.push(`UPDATED ${t}`);
+ }
+
+ pylonSub.textContent=parts.join(' • ');
+}
+
+function updatePylon(updatedAt,raceStatus){
+ if(mode!=='live'){scoringPylon.classList.remove('visible');scoringPylon.setAttribute('aria-hidden','true');return}
+ const rows=liveRows.slice(0,25);
+ pylonRows.innerHTML=rows.map(r=>{
+  const move=movementFor(r);
+  const moveClass=move?(move.delta>0?' moveUp':' moveDown'):'';
+  const moveHtml=move?`<span class="pylonMove ${move.delta>0?'up':'down'}">${move.delta>0?'▲':'▼'} ${Math.abs(move.delta)}</span>`:'';
+  const ord=ordinalParts(r.rank);
+  return `
+  <div class="pylonRow${moveClass}">
+   <div class="pylonRank"><span class="pylonRankNum">${ord.number}</span><span class="pylonRankSuffix">${ord.suffix}</span></div>
+   <div class="pylonText">
+    <span class="pylonParticipant">${r.participant}${moveHtml}</span>
+    <span class="pylonDriver">${(r.driver)}</span>
+   </div>
+  </div>`;
+ }).join('');
+ if(rows.length)updateRaceStatus(raceStatus,updatedAt);
+ else pylonSub.textContent='WAITING FOR DATA';
+ scoringPylon.classList.add('visible');
+ scoringPylon.setAttribute('aria-hidden','false');
+}
+
+
+let pylonUnlocked=false;
+let pylonDrag=null;
+
+function setPylonUnlocked(unlocked){
+ pylonUnlocked=unlocked;
+ scoringPylon.classList.toggle('unlocked',unlocked);
+ scoringPylon.classList.toggle('locked',!unlocked);
+ pylonLockBtn.classList.toggle('active',unlocked);
+ pylonLockBtn.textContent=unlocked?'Lock Pylon':'Unlock Pylon';
+}
+
+function savePylonPosition(){
+ localStorage.setItem('sportvisionPylonPosition',JSON.stringify({
+  left:scoringPylon.style.left,
+  top:scoringPylon.style.top
+ }));
+}
+
+function restorePylonPosition(){
+ try{
+  const saved=JSON.parse(localStorage.getItem('sportvisionPylonPosition')||'null');
+  if(saved&&saved.left&&saved.top){
+   scoringPylon.style.left=saved.left;
+   scoringPylon.style.top=saved.top;
+   scoringPylon.style.right='auto';
+   scoringPylon.style.bottom='auto';
+  }
+ }catch{}
+}
+
+function clampPylonPosition(left,top){
+ const rect=scoringPylon.getBoundingClientRect();
+ const maxLeft=Math.max(0,innerWidth-rect.width);
+ const maxTop=Math.max(0,innerHeight-rect.height);
+ return {
+  left:Math.min(Math.max(0,left),maxLeft),
+  top:Math.min(Math.max(0,top),maxTop)
+ };
+}
+
+function beginPylonDrag(clientX,clientY){
+ if(!pylonUnlocked||mode!=='live')return;
+ const rect=scoringPylon.getBoundingClientRect();
+ pylonDrag={dx:clientX-rect.left,dy:clientY-rect.top};
+ scoringPylon.style.right='auto';
+ scoringPylon.style.bottom='auto';
+}
+
+function movePylonDrag(clientX,clientY){
+ if(!pylonDrag)return;
+ const p=clampPylonPosition(clientX-pylonDrag.dx,clientY-pylonDrag.dy);
+ scoringPylon.style.left=p.left+'px';
+ scoringPylon.style.top=p.top+'px';
+}
+
+function endPylonDrag(){
+ if(!pylonDrag)return;
+ pylonDrag=null;
+ savePylonPosition();
+}
+
+
+flagModeSelect.addEventListener('change',()=>{
+ localStorage.setItem('sportvisionFlagMode',flagModeSelect.value);
+ updateRaceStatus(latestRaceStatus,latestRaceUpdatedAt);
+});
+
+pylonLockBtn.addEventListener('click',()=>setPylonUnlocked(!pylonUnlocked));
+
+scoringPylon.addEventListener('mousedown',e=>{
+ if(e.button!==0)return;
+ beginPylonDrag(e.clientX,e.clientY);
+ if(pylonDrag)e.preventDefault();
+});
+addEventListener('mousemove',e=>movePylonDrag(e.clientX,e.clientY));
+addEventListener('mouseup',endPylonDrag);
+
+scoringPylon.addEventListener('touchstart',e=>{
+ const t=e.touches[0];
+ if(!t)return;
+ beginPylonDrag(t.clientX,t.clientY);
+ if(pylonDrag)e.preventDefault();
+},{passive:false});
+addEventListener('touchmove',e=>{
+ const t=e.touches[0];
+ if(!t)return;
+ movePylonDrag(t.clientX,t.clientY);
+ if(pylonDrag)e.preventDefault();
+},{passive:false});
+addEventListener('touchend',endPylonDrag);
+
+addEventListener('resize',()=>{
+ if(!scoringPylon.style.left||!scoringPylon.style.top)return;
+ const rect=scoringPylon.getBoundingClientRect();
+ const p=clampPylonPosition(rect.left,rect.top);
+ scoringPylon.style.left=p.left+'px';
+ scoringPylon.style.top=p.top+'px';
+ savePylonPosition();
+});
+
+restorePylonPosition();
+setPylonUnlocked(false);
+
+
+function crawlOrdinalParts(n){
+  n=Number(n)||0;
+  const v=n%100;
+  const suffix=(v>=11&&v<=13)?'th':(n%10===1?'st':n%10===2?'nd':n%10===3?'rd':'th');
+  return {number:n,suffix};
+}
+
+function renderSeasonStandings(standings){
+  if(!Array.isArray(standings)||!standings.length){
+    seasonCrawl.classList.remove('visible');
+    seasonCrawlLabel.classList.remove('visible');
+    seasonCrawl.setAttribute('aria-hidden','true');
+    seasonCrawlLabel.setAttribute('aria-hidden','true');
+    return;
+  }
+
+  const rows=standings
+    .filter(r=>r&&r.participant&&Number.isFinite(Number(r.points)))
+    .map((r,i)=>({
+      rank:Number(r.rank)||i+1,
+      participant:String(r.participant),
+      points:Number(r.points)||0
+    }))
+    .sort((a,b)=>a.rank-b.rank);
+
+  const crawlGroup=
+    rows.map(r=>{const ord=crawlOrdinalParts(r.rank);return `<span class="seasonCrawlItem"><span class="seasonCrawlRank"><span class="seasonCrawlRankNum">${ord.number}</span><span class="seasonCrawlRankSuffix">${ord.suffix}</span></span><span class="seasonCrawlName">${r.participant}</span><span class="seasonCrawlPoints">${r.points}</span></span>`}).join('');
+
+  seasonCrawlTrack.innerHTML=
+    `<span class="seasonCrawlGroup">${crawlGroup}</span>`+
+    `<span class="seasonCrawlGroup" aria-hidden="true">${crawlGroup}</span>`;
+
+  const duration=Math.max(38,rows.length*3.2);
+  seasonCrawlTrack.style.setProperty('--crawl-duration',duration+'s');
+
+  seasonCrawl.classList.add('visible');
+  seasonCrawlLabel.classList.add('visible');
+  seasonCrawl.setAttribute('aria-hidden','false');
+  seasonCrawlLabel.setAttribute('aria-hidden','false');
+}
+
+function setLiveStatus(text,state=''){liveStatus.textContent=text;liveStatus.className=state}
+window.receiveLeaderboard=function(payload){
+ if(!payload||!payload.success||!Array.isArray(payload.leaderboard)){setLiveStatus('Live feed error','error');return}
+ renderSeasonStandings(payload.seasonStandings);
+
+ const incomingRows=payload.leaderboard.filter(r=>r&&r.rank&&r.participant&&r.driver);
+ if(mode!=='live'){liveRows=incomingRows;return}
+ updatePositionMoves(incomingRows);
+ liveRows=incomingRows;
+
+ const desiredCount=Math.min(25,liveRows.length||1);
+
+ // Build the live field only once when Live mode first connects.
+ // Every later refresh changes tag text only and never recreates a car.
+ if(!liveInitialized){
+  countRange.value=desiredCount;
+  buildCars();
+  liveInitialized=true;
+ }else{
+  countValue.textContent=desiredCount;
+
+  cars.forEach((car,i)=>{
+   const tag=car.el.querySelector('.tag');
+   const row=liveRows[i];
+   if(row)renderCarTag(tag,row);
+   else{tag.textContent='';tag.style.display='none';}
+  });
+ }
+
+ updatePylon(payload.updatedAt,payload.raceStatus);
+ const time=new Date(payload.updatedAt||Date.now()).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+ setLiveStatus(`Live • ${liveRows.length} cars • ${time}`,'ok');
+};
+function requestLeaderboard(){
+ const old=document.getElementById('leaderboardJsonp');if(old)old.remove();
+ const script=document.createElement('script');script.id='leaderboardJsonp';
+ script.src=LIVE_URL+'?callback=receiveLeaderboard&_='+Date.now();
+ script.onerror=()=>setLiveStatus('Cannot reach live feed','error');
+ document.body.appendChild(script);
+}
+function setDriveMode(nextMode){
+ driveMode=nextMode;
+ randomDriveBtn.classList.toggle('active',driveMode==='random');
+ orderDriveBtn.classList.toggle('active',driveMode==='order');
+ buildCars();
+}
+randomDriveBtn.addEventListener('click',()=>setDriveMode('random'));
+orderDriveBtn.addEventListener('click',()=>setDriveMode('order'));
+
+function startLive(){
+ if(mode==='live')return;
+ manualCarCount=+countRange.value;mode='live';liveInitialized=false;movementReady=false;previousRanks.clear();positionMoves.clear();
+ screensaverModeBtn.classList.remove('active');liveModeBtn.classList.add('active');liveModeBtn.textContent='✓ LIVE';
+ namesBtn.disabled=true;namesPanel.classList.remove('open');setLiveStatus('Connecting…');
+ pylonRows.innerHTML='';pylonSub.textContent='CONNECTING…';scoringPylon.classList.add('visible');scoringPylon.setAttribute('aria-hidden','false');
+ requestLeaderboard();clearInterval(liveTimer);liveTimer=setInterval(requestLeaderboard,15000);
+}
+function startScreensaver(){
+ mode='screensaver';liveInitialized=false;clearInterval(liveTimer);liveTimer=null;
+ screensaverModeBtn.classList.add('active');liveModeBtn.classList.remove('active');liveModeBtn.textContent='▶ GO LIVE';
+ namesBtn.disabled=false;countRange.value=manualCarCount;setLiveStatus('Manual names');setPylonUnlocked(false);scoringPylon.classList.remove('visible');scoringPylon.setAttribute('aria-hidden','true');buildCars();
+}
+screensaverModeBtn.addEventListener('click',startScreensaver);
+liveModeBtn.addEventListener('click',startLive);
+
+document.getElementById('fullscreenBtn').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await document.documentElement.requestFullscreen()}catch{alert('Press F11 instead.')}};function show(){panel.classList.remove('hidden');clearTimeout(hideTimer);hideTimer=setTimeout(()=>panel.classList.add('hidden'),5000)}document.getElementById('hideBtn').onclick=()=>panel.classList.add('hidden');addEventListener('mousemove',show);addEventListener('touchstart',show,{passive:true});addEventListener('keydown',e=>{if(e.key.toLowerCase()==='h')panel.classList.toggle('hidden')});buildNameInputs();buildCars();layer.style.display='none';carsToggleBtn.textContent='Show Cars';panel.classList.add('hidden');requestAnimationFrame(animate)
+})();
+</script>
+</body>
+</html>
