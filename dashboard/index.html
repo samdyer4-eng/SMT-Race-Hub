@@ -208,7 +208,14 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
 .opsName{font:850 14px/1.15 Arial,sans-serif}.opsRace .opsName{font-size:15px}
 .opsDetail{color:#a9a9a9;font:italic 800 11px/1 Arial,sans-serif;letter-spacing:.15px;white-space:nowrap}
 .opsSession.next{margin:3px -10px;padding:0 10px;background:rgba(255,255,255,.075);box-shadow:inset 3px 0 0 #fff}
-.opsSession.done{opacity:.46}
+.opsSession.live{background:linear-gradient(90deg,rgba(81,223,120,.13),rgba(255,255,255,.055));box-shadow:inset 3px 0 0 #51df78}
+.opsSession.done{opacity:.43}
+.opsSession.done .opsTime,.opsSession.done .opsName{text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:rgba(255,255,255,.65)}
+.opsNameLine{display:flex;align-items:center;gap:9px;min-width:0}
+.opsStateBadge{flex:0 0 auto;display:inline-flex;align-items:center;padding:3px 6px;border:1px solid rgba(255,255,255,.28);border-radius:4px;background:#252525;color:#ddd;font:900 8px/1 Arial,sans-serif;letter-spacing:.8px;text-transform:uppercase;text-decoration:none!important}
+.opsStateBadge.live{border-color:#51df78;background:rgba(81,223,120,.13);color:#8effaa}
+.opsStateBadge.next{border-color:rgba(255,255,255,.48);background:rgba(255,255,255,.09);color:#fff}
+.opsStateBadge.complete{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.035);color:#999}
 .opsMockNotice{padding:7px 10px;border:1px solid rgba(255,198,64,.35);border-radius:5px;background:rgba(255,198,64,.08);color:#ffd479;font:900 9px/1.2 Arial,sans-serif;letter-spacing:.7px;text-transform:uppercase}
 .nextUpBar{margin:10px 18px 0;padding:10px 14px;background:linear-gradient(90deg,rgba(255,255,255,.085),rgba(255,255,255,.025))}
 .nextUpName{font-size:18px}.nextUpMeta{margin-top:4px}.nextUpCountdown .countdown{font-size:24px}
@@ -545,7 +552,6 @@ const ALL_CREW_NAMES=[
  'Maren Thompson',
  'James McDaniels',
  'Rich Hawley',
-  'Santa Clause',
  'Terry Long'
 ];
 const CREW_STORAGE_KEY='smtWeekendCrewRoster';
@@ -669,6 +675,7 @@ let currentStatusSession=null;
 let latestLiveFeed=null;
 let latestLiveFeedReceivedAt=0;
 let selectedPrimaryTrack='';
+let lastScheduleStateSignature='';
 
 function cleanWeekendText(value){return String(value||'').replace(/\s+/g,' ').trim()}
 function escapeHtml(value){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
@@ -773,11 +780,15 @@ function chooseStatusSession(sessions,now=Date.now()){
  return sessions.find(s=>sessionState(s,now)==='live')||sessions.find(s=>sessionState(s,now)==='upcoming')||sessions[sessions.length-1]||null;
 }
 function seriesShort(session){return session?.seriesKey==='truck'?'TRUCK':session?.seriesKey==='xfinity'?'XFINITY':session?.seriesKey==='cup'?'CUP':''}
+function scheduleStateSignature(sessions,now=Date.now()){
+ return (sessions||[]).map(s=>sessionState(s,now)).join('|');
+}
 
 function renderDaySchedules(events){
  const sessions=buildOperationalSessions(events),groups=new Map();
  sessions.forEach(s=>{const key=dayKey(s.sessionDate);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
  const now=Date.now();let nextMarked=false;
+ lastScheduleStateSignature=scheduleStateSignature(sessions,now);
  weekendEventBrowser.innerHTML=[...groups.values()].map(items=>{
   const first=items[0].sessionDate;
   const day=first?first.toLocaleDateString([],{weekday:'long'}):'Date TBD';
@@ -786,8 +797,11 @@ function renderDaySchedules(events){
   return `<section class="opsDay"><div class="opsDayHeader"><div class="opsDayTitle">${escapeHtml(day)}</div><div class="opsDayBullet">•</div><div class="opsDayDate">${escapeHtml(date)}</div></div>${[...seriesGroups.entries()].map(([key,list])=>{
    const label=list[0].seriesLabel;
    return `<div class="opsSeries ${escapeHtml(key)}"><div class="opsSeriesHeader"><span class="opsSeriesDot"></span>${escapeHtml(label)}</div>${list.map(s=>{
-    const status=sessionState(s,now);let state='';if(status==='completed')state='done';else if(status==='live')state='next live';else if(!nextMarked&&status==='upcoming'){state='next';nextMarked=true}
-    return `<div class="opsSession ${state} ${s.sessionKind==='RACE'?'opsRace':''}"><div class="opsTime">${escapeHtml(s.sessionTime||'TBD')}</div><div class="opsName">${s.sessionKind==='RACE'?'🏁 ':''}${escapeHtml(s.sessionName)}</div><div class="opsDetail">${escapeHtml(s.sessionDetail||'')}</div></div>`
+    const status=sessionState(s,now);let state='',badge='';
+    if(status==='completed'){state='done';badge='<span class="opsStateBadge complete">Complete</span>'}
+    else if(status==='live'){state='live';badge='<span class="opsStateBadge live">Live</span>'}
+    else if(!nextMarked&&status==='upcoming'){state='next';badge='<span class="opsStateBadge next">Next</span>';nextMarked=true}
+    return `<div class="opsSession ${state} ${s.sessionKind==='RACE'?'opsRace':''}"><div class="opsTime">${escapeHtml(s.sessionTime||'TBD')}</div><div class="opsNameLine"><div class="opsName">${s.sessionKind==='RACE'?'🏁 ':''}${escapeHtml(s.sessionName)}</div>${badge}</div><div class="opsDetail">${escapeHtml(s.sessionDetail||'')}</div></div>`
    }).join('')}</div>`
   }).join('')}</section>`
  }).join('')||'<div class="timelineEmpty">No events found for this weekend.</div>';
@@ -939,8 +953,15 @@ async function loadWeekendDashboard(){
 previousWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex-1));nextWeekendBtn.addEventListener('click',()=>selectWeekend(selectedWeekendIndex+1));weekendSelect.addEventListener('change',()=>selectWeekend(Number(weekendSelect.value)));currentWeekendBtn.addEventListener('click',()=>selectWeekend(currentWeekendIndex));
 function updateDashboardClock(){
  const now=new Date();dashboardClock.innerHTML=now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'<small>LOCAL DEVICE TIME</small>';
- currentStatusSession=chooseStatusSession(currentOperationalSessions,Date.now());
+ const nowMs=Date.now();
+ currentStatusSession=chooseStatusSession(currentOperationalSessions,nowMs);
  if(currentStatusSession){activeFeaturedEvent=currentStatusSession;nextFeaturedDate=currentStatusSession.sessionDate||null}
+ const scheduleSignature=scheduleStateSignature(currentOperationalSessions,nowMs);
+ if(scheduleSignature!==lastScheduleStateSignature){
+  const selectedDated=weekendPosts[selectedWeekendIndex]?.dated;
+  if(Array.isArray(selectedDated)&&selectedDated.length)renderDaySchedules(selectedDated);
+  else lastScheduleStateSignature=scheduleSignature;
+ }
  renderProductionStatus();
  if(!currentStatusSession||!currentStatusSession.sessionDate){sessionCountdownStatus.textContent='Schedule status';sessionCountdown.textContent='DATE TBD';return}
  const state=sessionState(currentStatusSession,Date.now()),start=currentStatusSession.sessionDate.getTime(),end=currentStatusSession.sessionEnd?.getTime()??start+sessionDurationMs(currentStatusSession),current=Date.now();
