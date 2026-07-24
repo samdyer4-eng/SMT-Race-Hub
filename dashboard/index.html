@@ -278,6 +278,122 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
 }
 @media(max-width:700px){.dashboardTop{gap:12px}.dashboardStatusLine{align-items:flex-start;flex-direction:column;gap:7px}.eventStatusPill{padding:6px 8px}.dashboardTrack.eventHeadline{font-size:clamp(25px,9vw,40px);line-height:1}.dashboardStatus.eventMeta{font-size:10px}.eventTopCountdown{font-size:clamp(30px,10vw,46px)}.dashboardClock{font-size:23px;white-space:nowrap}}
 
+
+
+/* Compact unified operations header */
+.dashboardTop{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:18px;
+  margin-bottom:12px;
+  padding:12px 16px;
+  border:1px solid rgba(255,255,255,.20);
+  border-radius:11px;
+  background:linear-gradient(180deg,rgba(43,43,43,.96),rgba(14,14,14,.96));
+  box-shadow:0 10px 28px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.07);
+}
+.dashboardTop>div:first-child{
+  min-width:0;
+  display:grid;
+  grid-template-columns:auto minmax(240px,1fr) auto;
+  grid-template-areas:
+    "eyebrow eyebrow eyebrow"
+    "status headline meta";
+  align-items:center;
+  column-gap:14px;
+  row-gap:7px;
+}
+.dashboardEyebrow{grid-area:eyebrow;font-size:10px;letter-spacing:1.8px;color:#a9a9a9}
+.dashboardStatusLine{grid-area:status;margin-top:0}
+.dashboardTrack.eventHeadline{
+  grid-area:headline;
+  min-width:0;
+  margin-top:0;
+  font-size:clamp(25px,3.2vw,46px);
+  line-height:.92;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.dashboardStatus.eventMeta{
+  grid-area:meta;
+  min-width:0;
+  margin-top:0;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  text-align:right;
+  white-space:nowrap;
+}
+.eventMetaDetails{max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.eventTopCountdownLabel{margin-top:0;font-size:8px;letter-spacing:1.2px}
+.eventTopCountdown{margin-top:0;font-size:clamp(27px,2.8vw,40px);letter-spacing:-1px}
+.dashboardClock{
+  min-width:150px;
+  padding-left:18px;
+  border-left:1px solid rgba(255,255,255,.16);
+  font-size:clamp(24px,2.7vw,40px);
+  white-space:nowrap;
+}
+.dashboardClock small{margin-top:5px;font-size:9px}
+.dashboardGrid{height:calc(100vh - 205px)}
+
+@media(max-width:1150px){
+  .dashboardTop>div:first-child{
+    grid-template-columns:auto minmax(220px,1fr);
+    grid-template-areas:
+      "eyebrow eyebrow"
+      "status headline"
+      "meta meta";
+  }
+  .dashboardStatus.eventMeta{justify-content:flex-start;text-align:left}
+  .eventMetaDetails{max-width:none}
+  .dashboardGrid{height:auto}
+}
+
+@media(max-width:760px){
+  #infoDashboard{padding-top:10px}
+  .dashboardTop{grid-template-columns:1fr auto;gap:10px;padding:10px 11px;margin-bottom:10px}
+  .dashboardTop>div:first-child{
+    grid-template-columns:auto minmax(0,1fr);
+    grid-template-areas:
+      "eyebrow eyebrow"
+      "status headline"
+      "meta meta";
+    column-gap:9px;
+    row-gap:6px;
+  }
+  .dashboardEyebrow{font-size:8px;letter-spacing:1.3px}
+  .eventStatusPill{padding:5px 7px;font-size:8px;letter-spacing:.7px}
+  .dashboardTrack.eventHeadline{font-size:clamp(20px,6.7vw,31px)}
+  .dashboardStatus.eventMeta{gap:7px;overflow:hidden}
+  .eventMetaDetails{font-size:8px;overflow:hidden;text-overflow:ellipsis}
+  .eventTopCountdownLabel{display:none}
+  .eventTopCountdown{font-size:clamp(21px,7vw,30px)}
+  .dashboardClock{min-width:84px;padding-left:10px;font-size:20px}
+  .dashboardClock small{font-size:7px;letter-spacing:.8px}
+}
+
+@media(max-width:520px){
+  .dashboardTop{grid-template-columns:1fr}
+  .dashboardClock{
+    position:absolute;
+    top:14px;
+    right:18px;
+    min-width:0;
+    padding-left:0;
+    border-left:0;
+    font-size:17px;
+  }
+  .dashboardClock small{display:none}
+  .dashboardTop>div:first-child{grid-template-columns:auto minmax(0,1fr)}
+  .dashboardEyebrow{padding-right:92px}
+  .dashboardStatus.eventMeta{white-space:normal;flex-wrap:wrap}
+  .eventMetaDetails{width:100%;white-space:nowrap}
+}
+
 </style>
 </head>
 <body>
@@ -770,4 +886,3 @@ infoDashboard.setAttribute('aria-hidden','false');
 </script>
 </body>
 </html>
-
