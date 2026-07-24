@@ -169,7 +169,7 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
 .crewRosterList{display:grid;gap:7px}
 .crewRosterRow{display:grid;grid-template-columns:24px minmax(0,1fr) 28px;gap:7px;align-items:center}
 .crewRosterNumber{color:#777;font:900 10px/1 Arial,sans-serif;text-align:center}
-.crewRosterInput{width:100%;min-width:0;padding:8px 9px;border:1px solid rgba(255,255,255,.17);border-radius:6px;background:#111;color:#fff;font:800 12px/1 Arial,sans-serif;outline:none}
+.crewRosterInput{width:100%;min-width:0;padding:8px 28px 8px 9px;border:1px solid rgba(255,255,255,.17);border-radius:6px;background:#111;color:#fff;font:800 12px/1 Arial,sans-serif;outline:none}
 .crewRosterInput:focus{border-color:rgba(255,255,255,.5);box-shadow:0 0 0 2px rgba(255,255,255,.06)}
 .crewRosterRemove{width:28px;height:28px;padding:0;border-radius:6px;background:#282828;color:#aaa;font-size:16px;line-height:28px}
 .crewRosterRemove:hover{background:#4a2424;color:#fff}
@@ -306,8 +306,15 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
 }
 .dashboardEyebrow{grid-area:eyebrow;font-size:10px;letter-spacing:1.8px;color:#a9a9a9}
 .dashboardStatusLine{grid-area:status;margin-top:0}
-.dashboardTrack.eventHeadline{
+.headlineRow{
   grid-area:headline;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  overflow:hidden;
+}
+.dashboardTrack.eventHeadline{
   min-width:0;
   margin-top:0;
   font-size:clamp(25px,3.2vw,46px);
@@ -316,6 +323,17 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
   overflow:hidden;
   text-overflow:ellipsis;
 }
+.headerSessionCountdown{
+  display:none;
+  flex:0 0 auto;
+  padding-left:14px;
+  border-left:1px solid rgba(255,255,255,.20);
+  font:italic 900 clamp(23px,2.35vw,35px)/1 Arial,sans-serif;
+  letter-spacing:-.8px;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.headerSessionCountdown.visible{display:block}
 .dashboardStatus.eventMeta{
   grid-area:meta;
   min-width:0;
@@ -369,6 +387,8 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
   .dashboardEyebrow{font-size:8px;letter-spacing:1.3px}
   .eventStatusPill{padding:5px 7px;font-size:8px;letter-spacing:.7px}
   .dashboardTrack.eventHeadline{font-size:clamp(20px,6.7vw,31px)}
+  .headlineRow{gap:8px}
+  .headerSessionCountdown{padding-left:8px;font-size:clamp(18px,5.8vw,27px)}
   .dashboardStatus.eventMeta{gap:7px;overflow:hidden}
   .eventMetaDetails{font-size:8px;overflow:hidden;text-overflow:ellipsis}
   .eventTopCountdownLabel{display:none}
@@ -403,7 +423,7 @@ button,select{border:0;border-radius:9px;padding:9px 12px;background:#2d2d2d;col
     <div>
       <div class="dashboardEyebrow">SMT • RACE WEEKEND OPERATIONS BOARD</div>
       <div class="dashboardStatusLine"><span id="eventStatusPill" class="eventStatusPill offline">CONNECTING</span></div>
-      <div id="dashboardTrackName" class="dashboardTrack eventHeadline">Loading event status…</div>
+      <div class="headlineRow"><div id="dashboardTrackName" class="dashboardTrack eventHeadline">Loading event status…</div><div id="headerSessionCountdown" class="headerSessionCountdown" aria-live="polite"></div></div>
       <div id="dashboardSourceStatus" class="dashboardStatus eventMeta">Connecting to schedule and NASCAR live feed</div>
     </div>
     <div id="dashboardClock" class="dashboardClock">--:--<small>LOCAL DEVICE TIME</small></div>
@@ -472,6 +492,7 @@ const infoDashboard=document.getElementById('infoDashboard'),
  sessionCountdown=document.getElementById('sessionCountdown'),
  sessionCountdownStatus=document.getElementById('sessionCountdownStatus'),
  dashboardTrackName=document.getElementById('dashboardTrackName'),
+ headerSessionCountdown=document.getElementById('headerSessionCountdown'),
  eventStatusPill=document.getElementById('eventStatusPill'),
  dashboardSourceStatus=document.getElementById('dashboardSourceStatus'),
  nextEventName=document.getElementById('nextEventName'),
@@ -500,6 +521,32 @@ const infoDashboard=document.getElementById('infoDashboard'),
   seasonProgressMeta=document.getElementById('seasonProgressMeta'),
   seasonProgressViewport=document.getElementById('seasonProgressViewport'),
   seasonProgressTrack=document.getElementById('seasonProgressTrack');
+// EDIT THIS ONE LIST to add, remove, or rename the available crew members.
+const ALL_CREW_NAMES=[
+ 'Aj Mead',
+ 'Andrew Hawley',
+ 'Eugene Anderson',
+ 'Robo Bob Winton',
+ 'Chris Stoddard',
+ 'Josh Crane',
+ 'Mark Benich',
+ 'Carson Beaslin',
+ 'Nick Penta',
+ 'Nate Karamanski',
+ 'Charles Dallum',
+ 'Matt Mazza',
+ 'Loren Alstaedt',
+ 'Nick Bartel',
+ 'Sam Dyer',
+ 'Clint Harris',
+ 'Jack Van Vooren',
+ 'JoJo Rose',
+ 'Cory Rubin',
+ 'Maren Thompson',
+ 'James McDaniels',
+ 'Rich Hawley',
+ 'Terry Long'
+];
 const CREW_STORAGE_KEY='smtWeekendCrewRoster';
 let crewRoster=(()=>{try{const saved=JSON.parse(localStorage.getItem(CREW_STORAGE_KEY)||'null');return Array.isArray(saved)&&saved.length?saved:['','','','','',''];}catch(_){return ['','','','','',''];}})();
 let crewSavedTimer=null;
@@ -515,11 +562,22 @@ function renderCrewRoster(){
  crewRoster.forEach((name,index)=>{
   const row=document.createElement('div');row.className='crewRosterRow';
   const num=document.createElement('span');num.className='crewRosterNumber';num.textContent=index+1;
-  const input=document.createElement('input');input.className='crewRosterInput';input.type='text';input.maxLength=32;input.placeholder='Crew member name';input.value=name;
-  input.addEventListener('input',()=>{crewRoster[index]=input.value;saveCrewRoster()});
-  const remove=document.createElement('button');remove.className='crewRosterRemove';remove.type='button';remove.title='Remove crew member';remove.textContent='×';
+  const select=document.createElement('select');select.className='crewRosterInput';select.title=`Select crew member for slot ${index+1}`;
+  const blank=document.createElement('option');blank.value='';blank.textContent='— Unassigned —';select.appendChild(blank);
+  ALL_CREW_NAMES.forEach(crewName=>{
+   const option=document.createElement('option');option.value=crewName;option.textContent=crewName;
+   const usedElsewhere=crewRoster.some((selected,selectedIndex)=>selectedIndex!==index&&selected===crewName);
+   option.disabled=usedElsewhere;
+   select.appendChild(option);
+  });
+  if(name&&!ALL_CREW_NAMES.includes(name)){
+   const legacy=document.createElement('option');legacy.value=name;legacy.textContent=`${name} (saved)`;select.appendChild(legacy);
+  }
+  select.value=name;
+  select.addEventListener('change',()=>{crewRoster[index]=select.value;saveCrewRoster();renderCrewRoster()});
+  const remove=document.createElement('button');remove.className='crewRosterRemove';remove.type='button';remove.title='Remove crew slot';remove.textContent='×';
   remove.addEventListener('click',()=>{crewRoster.splice(index,1);if(!crewRoster.length)crewRoster.push('');saveCrewRoster();renderCrewRoster()});
-  row.append(num,input,remove);crewRosterList.appendChild(row);
+  row.append(num,select,remove);crewRosterList.appendChild(row);
  });
 }
 addCrewBtn.addEventListener('click',()=>{if(crewRoster.length>=20)return;crewRoster.push('');saveCrewRoster();renderCrewRoster();crewRosterList.lastElementChild?.querySelector('input')?.focus()});
@@ -782,11 +840,16 @@ function flagPresentation(flag){
  const map={1:['GREEN FLAG','live'],2:['CAUTION','yellow'],3:['RED FLAG','red'],4:['RED FLAG','red'],5:['WHITE FLAG','white'],8:['TRACK STATUS','upcoming'],9:['CHECKERED','checkered']};
  return map[Number(flag)]||['LIVE RACE','live'];
 }
+function setHeaderSessionCountdown(value=''){
+ headerSessionCountdown.textContent=value;
+ headerSessionCountdown.classList.toggle('visible',Boolean(value));
+}
 function renderProductionStatus(){
  const now=Date.now(),session=chooseStatusSession(currentOperationalSessions,now);currentStatusSession=session;
- if(!session){setStatusPill('SCHEDULE TBD','offline');dashboardTrackName.textContent='EVENT STATUS UNAVAILABLE';dashboardSourceStatus.textContent='No published sessions for the selected weekend';return}
+ if(!session){setHeaderSessionCountdown();setStatusPill('SCHEDULE TBD','offline');dashboardTrackName.textContent='EVENT STATUS UNAVAILABLE';dashboardSourceStatus.textContent='No published sessions for the selected weekend';return}
  const state=sessionState(session,now),prefix=seriesShort(session),sessionTitle=`${prefix} ${session.sessionName}`.trim();
  if(state==='live'&&session.sessionKind==='RACE'&&liveFeedIsUsable(latestLiveFeed)){
+  setHeaderSessionCountdown();
   const feed=latestLiveFeed,[flagLabel,flagClass]=flagPresentation(feed.flag_state);setStatusPill(flagLabel,flagClass);
   const lap=Number(feed.lap_number),total=Number(feed.laps_in_race),toGo=Number.isFinite(Number(feed.laps_to_go))?Number(feed.laps_to_go):(Number.isFinite(lap)&&Number.isFinite(total)?Math.max(0,total-lap):null);
   dashboardTrackName.textContent=cleanWeekendText(feed.run_name)||sessionTitle;
@@ -796,12 +859,15 @@ function renderProductionStatus(){
  }
  if(state==='live'){
   setStatusPill('HAPPENING NOW','live');dashboardTrackName.textContent=sessionTitle;
-  const remaining=(session.sessionEnd?.getTime()??(session.sessionDate.getTime()+sessionDurationMs(session)))-now;
-  dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • Estimated ${formatDuration(remaining)} remaining • Schedule mode`;
+  const remaining=Math.max(0,(session.sessionEnd?.getTime()??(session.sessionDate.getTime()+sessionDurationMs(session)))-now);
+  setHeaderSessionCountdown(formatDuration(remaining));
+  dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • Schedule mode`;
  }else if(state==='upcoming'){
   setStatusPill('NEXT EVENT','upcoming');dashboardTrackName.textContent=sessionTitle;
-  dashboardSourceStatus.innerHTML=`<div class="eventMetaDetails">${escapeHtml(session.track||selectedPrimaryTrack)} • ${escapeHtml(session.sessionDate.toLocaleDateString([],{weekday:'short',month:'long',day:'numeric'}))} at ${escapeHtml(session.sessionTime)}</div><div class="eventTopCountdownLabel">Starts in</div><div class="eventTopCountdown">${escapeHtml(formatDuration(session.sessionDate.getTime()-now))}</div>`;
+  setHeaderSessionCountdown(formatDuration(Math.max(0,session.sessionDate.getTime()-now)));
+  dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • ${session.sessionDate.toLocaleDateString([],{weekday:'short',month:'long',day:'numeric'})} at ${session.sessionTime}`;
  }else{
+  setHeaderSessionCountdown();
   setStatusPill(session.sessionKind==='RACE'?'RACE COMPLETE':'SESSION COMPLETE','complete');dashboardTrackName.textContent=sessionTitle;
   dashboardSourceStatus.textContent=`${session.track||selectedPrimaryTrack} • Completed according to published schedule`;
  }
