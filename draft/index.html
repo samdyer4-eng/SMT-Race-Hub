@@ -480,24 +480,65 @@
     }
 
     function buildChecks(roster, drivers) {
-      const checks = [];
-      const chosen = roster.filter(item => item.driver);
-      const chosenNames = chosen.map(item => lower(item.driver)).filter(Boolean);
+  const checks = [];
 
-      const duplicates = [...new Set(
-        chosenNames.filter((name, index, all) => all.indexOf(name) !== index)
-      )];
+  const chosen = roster.filter(item => item.driver);
 
-      duplicates.forEach(name => {
-        const people = chosen
-          .filter(item => lower(item.driver) === name)
-          .map(item => item.person)
-          .join(", ");
-        checks.push({
-          level: "bad",
-          text: `Duplicate selection: ${chosen.find(x => lower(x.driver) === name)?.driver || name} is assigned to ${people}.`
-        });
+  const chosenNames = chosen
+    .map(item => lower(item.driver))
+    .filter(Boolean);
+
+  const duplicates = [
+    ...new Set(
+      chosenNames.filter(
+        (name, index, all) => all.indexOf(name) !== index
+      )
+    )
+  ];
+
+  duplicates.forEach(name => {
+    const assignments = chosen.filter(
+      item => lower(item.driver) === name
+    );
+
+    const people = assignments
+      .map(item => item.person)
+      .join(", ");
+
+    const displayName = assignments[0]?.driver || name;
+
+    checks.push({
+      level: "bad",
+      text: `Duplicate selection: ${displayName} is assigned to ${people}.`
+    });
+  });
+
+  const driverMap = new Map(
+    drivers.map(driver => [lower(driver.name), driver])
+  );
+
+  chosen.forEach(item => {
+    const matched = driverMap.get(lower(item.driver));
+
+    if (!matched) {
+      checks.push({
+        level: "warn",
+        text: `${item.driver} is selected by ${item.person}, but that driver was not found in the driver list.`
       });
+
+      return;
+    }
+
+    if (statusType(matched.draftStatus) === "memorial") {
+      checks.push({
+        level: "bad",
+        text: `${item.driver} is selected by ${item.person}, but that driver is marked Memorial / Ineligible.`
+      });
+    }
+  });
+
+  return checks;
+}
 
       const driverMap = new Map(drivers.map(driver => [lower(driver.name), driver]));
 
