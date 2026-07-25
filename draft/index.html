@@ -186,7 +186,7 @@
                 <th>Pick</th>
                 <th>Roster</th>
                 <th>Driver</th>
-                <th>Sheet Status</th>
+                <th>Pick Status</th>
               </tr>
             </thead>
             <tbody id="draftOrderBody"></tbody>
@@ -440,7 +440,11 @@
             <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
             <td><strong>${escapeHTML(item.person)}</strong></td>
             <td>${item.driver ? escapeHTML(item.driver) : "—"}</td>
-            <td>${escapeHTML(item.status || "—")}</td>
+             <td>
+   <span class="status-chip ${item.driver ? "status-picked" : "status-other"}">
+     ${item.driver ? "Picked" : "Pending"}
+   </span>
+</td>
           </tr>
         `;
       }).join("");
