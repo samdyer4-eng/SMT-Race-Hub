@@ -436,14 +436,29 @@
             : item.driver ? "complete" : "pending";
 
         return `
-          <tr class="${rowClass}">
-            <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
-            <td><strong>${escapeHTML(item.person)}</strong></td>
-            <td>${item.driver ? escapeHTML(item.driver) : "—"}</td>
-             <td>
-   <span class="status-chip ${item.driver ? "status-picked" : "status-other"}">
-     ${item.driver ? "Picked" : "Pending"}
-   </span>
+  <tr class="${rowClass}">
+    <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
+    <td><strong>${escapeHTML(item.person)}</strong></td>
+    <td>${item.driver ? escapeHTML(item.driver) : "—"}</td>
+    <td>
+      <span class="status-chip ${
+        index === activeIndex && completed < total
+          ? "status-available"
+          : item.driver
+            ? "status-picked"
+            : "status-other"
+      }">
+        ${
+          index === activeIndex && completed < total
+            ? "Picking"
+            : item.driver
+              ? "Picked"
+              : "Pending"
+        }
+      </span>
+    </td>
+  </tr>
+`;
 </td>
           </tr>
         `;
