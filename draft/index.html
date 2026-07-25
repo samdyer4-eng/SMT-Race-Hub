@@ -1,11 +1,665 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SMT Pick’em Draft Tool</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>SMT Pick'em Draft HQ</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#121821;
+      --panel-2:#18212c;
+      --border:#2a3441;
+      --text:#f4f7fb;
+      --muted:#98a5b5;
+      --accent:#e52b2f;
+      --accent-soft:rgba(229,43,47,.14);
+      --green:#51c878;
+      --yellow:#e6c24a;
+      --orange:#f39a45;
+      --red:#ff6268;
+      --blue:#5ca8ff;
+    }
+
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:
+      radial-gradient(circle at top right,rgba(229,43,47,.08),transparent 32%),
+      var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+    body{min-height:100vh}
+    button,a{font:inherit}
+    .top-bar{height:5px;background:var(--accent)}
+    .page{width:min(1240px,calc(100% - 30px));margin:0 auto;padding:34px 0 40px}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:24px}
+    .brand{display:flex;align-items:center;gap:15px}
+    .brand-mark{width:50px;height:50px;border-radius:12px;display:grid;place-items:center;background:var(--accent);font-weight:900;box-shadow:0 10px 28px rgba(229,43,47,.22)}
+    h1{margin:0;font-size:clamp(30px,5vw,46px);letter-spacing:-1.6px;line-height:1}
+    .subtitle{margin:8px 0 0;color:var(--muted);font-size:14px}
+    .header-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .pill,.button{border:1px solid var(--border);border-radius:999px;padding:9px 13px;background:rgba(255,255,255,.02);color:var(--muted);font-size:13px;text-decoration:none}
+    .button{cursor:pointer;transition:160ms ease}
+    .button:hover{border-color:rgba(229,43,47,.7);color:var(--text)}
+    .status-dot{display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(81,200,120,.55)}
+    .status-dot.offline{background:var(--red);box-shadow:0 0 10px rgba(255,98,104,.5)}
+    .summary-grid{display:grid;grid-template-columns:1.35fr .65fr .65fr;gap:16px;margin-bottom:16px}
+    .card{border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel);padding:20px}
+    .card-title{margin:0 0 12px;color:var(--muted);font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
+    .clock-card{position:relative;overflow:hidden}
+    .clock-card::after{content:"";position:absolute;inset:auto -40px -80px auto;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(229,43,47,.18),transparent 70%);pointer-events:none}
+    .current-line{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+    .pick-number{font-size:13px;color:var(--muted);margin-bottom:5px}
+    .picker{font-size:clamp(28px,4vw,42px);font-weight:900;letter-spacing:-1px}
+    .timer{text-align:right}
+    .timer-value{font-variant-numeric:tabular-nums;font-size:clamp(34px,5vw,54px);font-weight:900;letter-spacing:-1px;line-height:1}
+    .timer-label{margin-top:7px;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:.8px}
+    .timer-note{margin-top:15px;color:var(--muted);font-size:12px;line-height:1.45}
+    .queue{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+    .queue-box{border:1px solid var(--border);border-radius:13px;padding:12px;background:rgba(255,255,255,.018)}
+    .queue-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800}
+    .queue-name{margin-top:5px;font-size:17px;font-weight:800}
+    .metric{font-size:38px;font-weight:900;letter-spacing:-1px}
+    .metric-sub{color:var(--muted);font-size:13px;margin-top:5px}
+    .progress-track{height:9px;border-radius:99px;background:#0a0e13;overflow:hidden;border:1px solid var(--border);margin-top:15px}
+    .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#ff666a);transition:width .3s ease}
+    .health-good{color:var(--green)}
+    .health-warn{color:var(--yellow)}
+    .health-bad{color:var(--red)}
+    .main-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px}
+    table{width:100%;border-collapse:collapse;min-width:580px}
+    th,td{padding:11px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:13px}
+    th{position:sticky;top:0;background:#0f151d;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.9px;z-index:1}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr.current{background:rgba(81,200,120,.1)}
+    tbody tr.complete td{color:#dce4ee}
+    tbody tr.pending td{color:var(--muted)}
+    .pick-chip{display:inline-grid;place-items:center;min-width:27px;height:27px;border-radius:8px;background:rgba(255,255,255,.06);font-weight:900}
+    .status-chip{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800}
+    .status-available{background:rgba(81,200,120,.12);color:#7ce69e}
+    .status-picked{background:rgba(229,43,47,.13);color:#ff7a7e}
+    .status-memorial{background:rgba(92,168,255,.13);color:#8fc3ff}
+    .status-other{background:rgba(230,194,74,.13);color:#efd77b}
+    .driver-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .driver-card{border:1px solid var(--border);border-radius:12px;padding:11px 12px;background:rgba(255,255,255,.018)}
+    .driver-name{font-weight:850}
+    .driver-meta{margin-top:4px;color:var(--muted);font-size:12px}
+    .manufacturer{font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+    .checks{display:grid;gap:9px}
+    .check-item{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:12px;padding:11px 12px;background:rgba(255,255,255,.018);font-size:13px;line-height:1.4}
+    .check-icon{font-weight:900}
+    .legend{margin-top:16px}
+    details{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.018);padding:0 14px}
+    summary{cursor:pointer;padding:13px 0;font-weight:800}
+    .legend-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 0 14px}
+    .legend-item{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;line-height:1.4}
+    .footer{margin-top:22px;padding-top:17px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:16px;color:var(--muted);font-size:12px}
+    .error{display:none;margin-bottom:16px;border:1px solid rgba(255,98,104,.6);background:rgba(255,98,104,.08);border-radius:14px;padding:14px;color:#ffb2b5;line-height:1.5}
+    .empty{color:var(--muted);font-size:13px}
+
+    @media(max-width:900px){
+      .summary-grid,.main-grid{grid-template-columns:1fr}
+      .header{flex-direction:column}
+      .header-actions{justify-content:flex-start}
+    }
+    @media(max-width:620px){
+      .page{width:min(100% - 18px,1240px);padding-top:24px}
+      .current-line{align-items:flex-start;flex-direction:column}
+      .timer{text-align:left}
+      .queue,.driver-grid,.legend-grid{grid-template-columns:1fr}
+      .brand-mark{width:45px;height:45px}
+    }
+  </style>
 </head>
 <body>
-  <h1>Draft Tool Coming Soon</h1>
+  <div class="top-bar"></div>
+  <main class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">SMT</div>
+        <div>
+          <h1>Pick'em Draft HQ</h1>
+          <p class="subtitle">Live read-only monitor powered by the Draft Tool sheet.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="pill"><span id="connectionDot" class="status-dot offline"></span><span id="connectionText">Connecting…</span></div>
+        <button class="button" id="resetClockBtn" type="button">Reset Clock</button>
+        <a class="button" href="../">← Race Operations</a>
+        <a class="button" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1udSjktGF3FkITvIoyV1_Fjg0Fd92OZPMdiJUeDQTBok/edit?gid=849473279#gid=849473279">Open Live Sheet ↗</a>
+      </div>
+    </header>
+
+    <div id="errorBox" class="error"></div>
+
+    <section class="summary-grid">
+      <article class="card clock-card">
+        <p class="card-title">Current Pick</p>
+        <div class="current-line">
+          <div>
+            <div id="currentPickNumber" class="pick-number">Waiting for sheet…</div>
+            <div id="currentPicker" class="picker">—</div>
+          </div>
+          <div class="timer">
+            <div id="timerValue" class="timer-value">00:00</div>
+            <div id="timerStatus" class="timer-label health-good">On the Clock</div>
+          </div>
+        </div>
+
+        <div class="queue">
+          <div class="queue-box">
+            <div class="queue-label">Next Up</div>
+            <div id="nextPicker" class="queue-name">—</div>
+          </div>
+          <div class="queue-box">
+            <div class="queue-label">On Deck</div>
+            <div id="onDeckPicker" class="queue-name">—</div>
+          </div>
+        </div>
+
+        <div class="timer-note">
+          ≈ Timer is estimated from when this display detects a new active pick.
+          Last sheet refresh: <strong id="lastRefresh">Not yet</strong>
+        </div>
+      </article>
+
+      <article class="card">
+        <p class="card-title">Draft Progress</p>
+        <div id="progressMetric" class="metric">0 / 20</div>
+        <div id="progressSub" class="metric-sub">Picks completed</div>
+        <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+      </article>
+
+      <article class="card">
+        <p class="card-title">Draft Check</p>
+        <div id="healthMetric" class="metric health-good">—</div>
+        <div id="healthSub" class="metric-sub">Waiting for data</div>
+      </article>
+    </section>
+
+    <section class="main-grid">
+      <article class="card">
+        <p class="card-title">Draft Order</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Pick</th>
+                <th>Roster</th>
+                <th>Driver</th>
+                <th>Sheet Status</th>
+              </tr>
+            </thead>
+            <tbody id="draftOrderBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="card">
+        <p class="card-title">Available Drivers</p>
+        <div id="availableDrivers" class="driver-grid">
+          <div class="empty">Waiting for sheet data…</div>
+        </div>
+      </article>
+
+      <article class="card">
+        <p class="card-title">Commissioner's Check</p>
+        <div id="checks" class="checks">
+          <div class="check-item"><span class="check-icon">…</span><span>Waiting for sheet data.</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <p class="card-title">Unavailable / Memorial</p>
+        <div id="unavailableDrivers" class="driver-grid">
+          <div class="empty">Waiting for sheet data…</div>
+        </div>
+      </article>
+    </section>
+
+    <div class="legend">
+      <details>
+        <summary>Draft Timer Legend</summary>
+        <div class="legend-grid">
+          <div class="legend-item"><strong class="health-good">0–10 min</strong><br>On the Clock</div>
+          <div class="legend-item"><strong class="health-warn">10–30 min</strong><br>Taking Their Time</div>
+          <div class="legend-item"><strong style="color:var(--orange)">30–60 min</strong><br>Holding Up the Draft</div>
+          <div class="legend-item"><strong class="health-bad">60+ min</strong><br>Excessive Delay</div>
+        </div>
+      </details>
+    </div>
+
+    <footer class="footer">
+      <span>SMT Race Operations</span>
+      <span>Read-only view — this page cannot modify the Google Sheet.</span>
+    </footer>
+  </main>
+
+  <script>
+    const SHEET_ID = "1udSjktGF3FkITvIoyV1_Fjg0Fd92OZPMdiJUeDQTBok";
+    const SHEET_GID = "849473279";
+
+    /*
+      Publish the "Draft Tool" tab through:
+      File → Share → Publish to web
+
+      This URL reads only the published values and never writes to the sheet.
+    */
+    const CSV_URL =
+      `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+
+    const POLL_MS = 10000;
+    const CLOCK_STORAGE_KEY = "smtDraftClockV1";
+
+    let currentRows = [];
+    let timerInterval = null;
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let quoted = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"' && quoted && next === '"') {
+          field += '"';
+          i++;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === "," && !quoted) {
+          row.push(field);
+          field = "";
+        } else if ((char === "\n" || char === "\r") && !quoted) {
+          if (char === "\r" && next === "\n") i++;
+          row.push(field);
+          if (row.some(cell => cell !== "")) rows.push(row);
+          row = [];
+          field = "";
+        } else {
+          field += char;
+        }
+      }
+
+      row.push(field);
+      if (row.some(cell => cell !== "")) rows.push(row);
+      return rows;
+    }
+
+    function normalize(value) {
+      return String(value ?? "").trim();
+    }
+
+    function lower(value) {
+      return normalize(value).toLowerCase();
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function extractData(rows) {
+      const roster = [];
+
+      for (let r = 1; r <= 20; r++) {
+        const row = rows[r] || [];
+        const pick = normalize(row[0]);
+        const person = normalize(row[1]);
+        const driver = normalize(row[2]);
+        const status = normalize(row[3]);
+
+        if (pick || person) {
+          roster.push({ pick, person, driver, status, rowNumber: r + 1 });
+        }
+      }
+
+      const drivers = [];
+
+      for (let r = 1; r < Math.min(rows.length, 48); r++) {
+        const row = rows[r] || [];
+        const draftStatus = normalize(row[5]);
+        const name = normalize(row[6]);
+        const car = normalize(row[7]);
+        const manufacturer = normalize(row[8]);
+
+        if (name) {
+          drivers.push({
+            draftStatus,
+            name,
+            car,
+            manufacturer,
+            rowNumber: r + 1
+          });
+        }
+      }
+
+      return { roster, drivers };
+    }
+
+    function getActiveIndex(roster) {
+      const firstWithoutDriver = roster.findIndex(item => !item.driver);
+      return firstWithoutDriver === -1 ? roster.length - 1 : firstWithoutDriver;
+    }
+
+    function updateClock(activePicker) {
+      if (!activePicker) {
+        document.getElementById("timerValue").textContent = "00:00";
+        return;
+      }
+
+      let saved = null;
+      try {
+        saved = JSON.parse(localStorage.getItem(CLOCK_STORAGE_KEY) || "null");
+      } catch (_) {}
+
+      if (!saved || saved.picker !== activePicker) {
+        saved = { picker: activePicker, startedAt: Date.now() };
+        localStorage.setItem(CLOCK_STORAGE_KEY, JSON.stringify(saved));
+      }
+
+      const draw = () => {
+        const elapsed = Math.max(0, Date.now() - saved.startedAt);
+        const totalSeconds = Math.floor(elapsed / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        document.getElementById("timerValue").textContent =
+          hours > 0
+            ? `${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`
+            : `${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`;
+
+        const status = document.getElementById("timerStatus");
+        const mins = elapsed / 60000;
+
+        status.className = "timer-label";
+
+        if (mins < 10) {
+          status.textContent = "On the Clock";
+          status.classList.add("health-good");
+        } else if (mins < 30) {
+          status.textContent = "Taking Their Time";
+          status.classList.add("health-warn");
+        } else if (mins < 60) {
+          status.textContent = "Holding Up the Draft";
+          status.style.color = "var(--orange)";
+        } else {
+          status.textContent = "Excessive Delay";
+          status.classList.add("health-bad");
+        }
+      };
+
+      clearInterval(timerInterval);
+      draw();
+      timerInterval = setInterval(draw, 1000);
+    }
+
+    function renderRoster(roster) {
+      const activeIndex = getActiveIndex(roster);
+      const active = roster[activeIndex];
+      const next = roster[activeIndex + 1];
+      const onDeck = roster[activeIndex + 2];
+
+      const completed = roster.filter(item => item.driver).length;
+      const total = roster.length || 20;
+
+      document.getElementById("currentPickNumber").textContent =
+        active ? `Pick #${active.pick || activeIndex + 1}` : "Draft complete";
+
+      document.getElementById("currentPicker").textContent =
+        completed >= total ? "Draft Complete" : (active?.person || "—");
+
+      document.getElementById("nextPicker").textContent =
+        completed >= total ? "—" : (next?.person || "Final pick");
+
+      document.getElementById("onDeckPicker").textContent =
+        completed >= total ? "—" : (onDeck?.person || "—");
+
+      document.getElementById("progressMetric").textContent = `${completed} / ${total}`;
+      document.getElementById("progressSub").textContent =
+        completed >= total ? "Draft complete" : "Picks completed";
+
+      document.getElementById("progressFill").style.width =
+        `${total ? (completed / total) * 100 : 0}%`;
+
+      const body = document.getElementById("draftOrderBody");
+      body.innerHTML = roster.map((item, index) => {
+        const rowClass =
+          index === activeIndex && completed < total
+            ? "current"
+            : item.driver ? "complete" : "pending";
+
+        return `
+          <tr class="${rowClass}">
+            <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
+            <td><strong>${escapeHTML(item.person)}</strong></td>
+            <td>${item.driver ? escapeHTML(item.driver) : "—"}</td>
+            <td>${escapeHTML(item.status || "—")}</td>
+          </tr>
+        `;
+      }).join("");
+
+      updateClock(completed >= total ? "" : active?.person);
+    }
+
+    function statusType(status) {
+      const value = lower(status);
+
+      if (value === "available") return "available";
+      if (value.includes("angel")) return "memorial";
+      if (value === "drafted" || value === "picked" || value.includes("unavailable")) return "picked";
+      return value ? "other" : "other";
+    }
+
+    function driverCard(driver) {
+      const type = statusType(driver.draftStatus);
+      const label = type === "memorial" ? "Memorial / Ineligible" : (driver.draftStatus || "Unavailable");
+
+      return `
+        <div class="driver-card">
+          <div class="driver-name">${escapeHTML(driver.name)}</div>
+          <div class="driver-meta">
+            ${driver.car ? `#${escapeHTML(driver.car)} · ` : ""}
+            <span class="manufacturer">${escapeHTML(driver.manufacturer || "Unknown")}</span>
+          </div>
+          <div style="margin-top:8px">
+            <span class="status-chip status-${type}">${escapeHTML(label)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildChecks(roster, drivers) {
+      const checks = [];
+      const chosen = roster.filter(item => item.driver);
+      const chosenNames = chosen.map(item => lower(item.driver)).filter(Boolean);
+
+      const duplicates = [...new Set(
+        chosenNames.filter((name, index, all) => all.indexOf(name) !== index)
+      )];
+
+      duplicates.forEach(name => {
+        const people = chosen
+          .filter(item => lower(item.driver) === name)
+          .map(item => item.person)
+          .join(", ");
+        checks.push({
+          level: "bad",
+          text: `Duplicate selection: ${chosen.find(x => lower(x.driver) === name)?.driver || name} is assigned to ${people}.`
+        });
+      });
+
+      const driverMap = new Map(drivers.map(driver => [lower(driver.name), driver]));
+
+      chosen.forEach(item => {
+        const matched = driverMap.get(lower(item.driver));
+        if (!matched) {
+          checks.push({
+            level: "warn",
+            text: `${item.driver} is selected by ${item.person}, but that driver was not found in the right-side driver list.`
+          });
+        } else if (statusType(matched.draftStatus) === "available") {
+          checks.push({
+            level: "warn",
+            text: `${item.driver} is selected by ${item.person} but is still marked Available.`
+          });
+        }
+      });
+
+      drivers.forEach(driver => {
+        const type = statusType(driver.draftStatus);
+        const selected = chosenNames.includes(lower(driver.name));
+
+        if (type === "picked" && !selected) {
+          checks.push({
+            level: "warn",
+            text: `${driver.name} is marked ${driver.draftStatus || "unavailable"} but is not assigned to anyone.`
+          });
+        }
+
+        if (type === "other" && lower(driver.draftStatus) !== "") {
+          checks.push({
+            level: "info",
+            text: `${driver.name} has custom status "${driver.draftStatus}".`
+          });
+        }
+      });
+
+      roster.forEach(item => {
+        if (lower(item.status) === "picked" && !item.driver) {
+          checks.push({
+            level: "bad",
+            text: `${item.person} is marked Picked but has no driver selected.`
+          });
+        }
+      });
+
+      return checks;
+    }
+
+    function renderDrivers(roster, drivers) {
+      const available = drivers.filter(driver => statusType(driver.draftStatus) === "available");
+      const unavailable = drivers.filter(driver => statusType(driver.draftStatus) !== "available");
+
+      document.getElementById("availableDrivers").innerHTML =
+        available.length ? available.map(driverCard).join("") : '<div class="empty">No drivers currently marked Available.</div>';
+
+      document.getElementById("unavailableDrivers").innerHTML =
+        unavailable.length ? unavailable.map(driverCard).join("") : '<div class="empty">No unavailable drivers detected.</div>';
+
+      const checks = buildChecks(roster, drivers);
+      const checksBox = document.getElementById("checks");
+
+      if (!checks.length) {
+        checksBox.innerHTML = `
+          <div class="check-item">
+            <span class="check-icon health-good">✓</span>
+            <span>No obvious draft inconsistencies detected.</span>
+          </div>
+        `;
+      } else {
+        checksBox.innerHTML = checks.map(check => {
+          const icon = check.level === "bad" ? "✕" : check.level === "warn" ? "⚠" : "ℹ";
+          const className = check.level === "bad" ? "health-bad" : check.level === "warn" ? "health-warn" : "";
+          return `
+            <div class="check-item">
+              <span class="check-icon ${className}">${icon}</span>
+              <span>${escapeHTML(check.text)}</span>
+            </div>
+          `;
+        }).join("");
+      }
+
+      const healthMetric = document.getElementById("healthMetric");
+      const healthSub = document.getElementById("healthSub");
+      const badCount = checks.filter(c => c.level === "bad").length;
+      const warnCount = checks.filter(c => c.level === "warn").length;
+
+      healthMetric.className = "metric";
+
+      if (badCount) {
+        healthMetric.textContent = `${badCount} Error${badCount === 1 ? "" : "s"}`;
+        healthMetric.classList.add("health-bad");
+        healthSub.textContent = `${warnCount} additional warning${warnCount === 1 ? "" : "s"}`;
+      } else if (warnCount) {
+        healthMetric.textContent = `${warnCount} Warning${warnCount === 1 ? "" : "s"}`;
+        healthMetric.classList.add("health-warn");
+        healthSub.textContent = "Review the commissioner's check";
+      } else {
+        healthMetric.textContent = "Healthy";
+        healthMetric.classList.add("health-good");
+        healthSub.textContent = "No obvious inconsistencies";
+      }
+    }
+
+    function setConnection(ok, text) {
+      const dot = document.getElementById("connectionDot");
+      const label = document.getElementById("connectionText");
+      dot.classList.toggle("offline", !ok);
+      label.textContent = text;
+    }
+
+    async function loadDraft() {
+      const errorBox = document.getElementById("errorBox");
+
+      try {
+        const response = await fetch(`${CSV_URL}&cacheBust=${Date.now()}`, {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error(`Google returned HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+
+        if (text.trim().startsWith("<!DOCTYPE") || text.includes("<html")) {
+          throw new Error("Google returned a sign-in or sharing page instead of CSV data.");
+        }
+
+        const rows = parseCSV(text);
+        currentRows = rows;
+        const { roster, drivers } = extractData(rows);
+
+        if (!roster.length) {
+          throw new Error("The Draft Tool roster was not found in columns A–D.");
+        }
+
+        renderRoster(roster);
+        renderDrivers(roster, drivers);
+
+        const refreshed = new Date();
+        document.getElementById("lastRefresh").textContent =
+          refreshed.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+
+        errorBox.style.display = "none";
+        errorBox.textContent = "";
+        setConnection(true, "Live Sheet Connected");
+      } catch (error) {
+        setConnection(false, "Sheet Connection Failed");
+        errorBox.style.display = "block";
+        errorBox.innerHTML = `
+          <strong>Could not read the Draft Tool tab.</strong><br>
+          ${escapeHTML(error.message)}<br><br>
+          Confirm the Draft Tool tab is published through
+          <strong>File → Share → Publish to web</strong>, then refresh this page.
+        `;
+      }
+    }
+
+    document.getElementById("resetClockBtn").addEventListener("click", () => {
+      localStorage.removeItem(CLOCK_STORAGE_KEY);
+      loadDraft();
+    });
+
+    loadDraft();
+    setInterval(loadDraft, POLL_MS);
+  </script>
 </body>
 </html>
