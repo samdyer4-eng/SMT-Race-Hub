@@ -401,68 +401,82 @@
     }
 
     function renderRoster(roster) {
-      const activeIndex = getActiveIndex(roster);
-      const active = roster[activeIndex];
-      const next = roster[activeIndex + 1];
-      const onDeck = roster[activeIndex + 2];
+  const activeIndex = getActiveIndex(roster);
+  const active = roster[activeIndex];
+  const next = roster[activeIndex + 1];
+  const onDeck = roster[activeIndex + 2];
 
-      const completed = roster.filter(item => item.driver).length;
-      const total = roster.length || 20;
+  const completed = roster.filter(item => item.driver).length;
+  const total = roster.length || 20;
 
-      document.getElementById("currentPickNumber").textContent =
-        active ? `Pick #${active.pick || activeIndex + 1}` : "Draft complete";
+  document.getElementById("currentPickNumber").textContent =
+    active ? `Pick #${active.pick || activeIndex + 1}` : "Draft complete";
 
-      document.getElementById("currentPicker").textContent =
-        completed >= total ? "Draft Complete" : (active?.person || "—");
+  document.getElementById("currentPicker").textContent =
+    completed >= total ? "Draft Complete" : (active?.person || "—");
 
-      document.getElementById("nextPicker").textContent =
-        completed >= total ? "—" : (next?.person || "Final pick");
+  document.getElementById("nextPicker").textContent =
+    completed >= total ? "—" : (next?.person || "Final pick");
 
-      document.getElementById("onDeckPicker").textContent =
-        completed >= total ? "—" : (onDeck?.person || "—");
+  document.getElementById("onDeckPicker").textContent =
+    completed >= total ? "—" : (onDeck?.person || "—");
 
-      document.getElementById("progressMetric").textContent = `${completed} / ${total}`;
-      document.getElementById("progressSub").textContent =
-        completed >= total ? "Draft complete" : "Picks completed";
+  document.getElementById("progressMetric").textContent = `${completed} / ${total}`;
 
-      document.getElementById("progressFill").style.width =
-        `${total ? (completed / total) * 100 : 0}%`;
+  document.getElementById("progressSub").textContent =
+    completed >= total ? "Draft complete" : "Picks completed";
 
-      const body = document.getElementById("draftOrderBody");
-      body.innerHTML = roster.map((item, index) => {
-        const rowClass =
-          index === activeIndex && completed < total
-            ? "current"
-            : item.driver ? "complete" : "pending";
+  document.getElementById("progressFill").style.width =
+    `${total ? (completed / total) * 100 : 0}%`;
 
-        return `
-  <tr class="${rowClass}">
-    <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
-    <td><strong>${escapeHTML(item.person)}</strong></td>
-    <td>${item.driver ? escapeHTML(item.driver) : "—"}</td>
-    <td>
-      <span class="status-chip ${
-        index === activeIndex && completed < total
-          ? "status-available"
-          : item.driver
-            ? "status-picked"
-            : "status-other"
-      }">
-        ${
-          index === activeIndex && completed < total
-            ? "Picking"
-            : item.driver
-              ? "Picked"
-              : "Pending"
-        }
-      </span>
-    </td>
-  </tr>
-`;
-</td>
-          </tr>
-        `;
-      }).join("");
+  const body = document.getElementById("draftOrderBody");
+
+  body.innerHTML = roster.map((item, index) => {
+
+    const isActive =
+      index === activeIndex && completed < total;
+
+    const rowClass = isActive
+      ? "current"
+      : item.driver
+        ? "complete"
+        : "pending";
+
+    const statusText = isActive
+      ? "Picking"
+      : item.driver
+        ? "Picked"
+        : "Pending";
+
+    const statusClass = isActive
+      ? "status-available"
+      : item.driver
+        ? "status-picked"
+        : "status-other";
+
+    return `
+      <tr class="${rowClass}">
+        <td><span class="pick-chip">${escapeHTML(item.pick || index + 1)}</span></td>
+
+        <td>
+          <strong>${escapeHTML(item.person)}</strong>
+        </td>
+
+        <td>
+          ${item.driver ? escapeHTML(item.driver) : "—"}
+        </td>
+
+        <td>
+          <span class="status-chip ${statusClass}">
+            ${statusText}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  updateClock(completed >= total ? "" : active?.person);
+}
 
       updateClock(completed >= total ? "" : active?.person);
     }
