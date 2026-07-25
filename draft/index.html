@@ -538,55 +538,7 @@
   });
 
   return checks;
-}
-
-      const driverMap = new Map(drivers.map(driver => [lower(driver.name), driver]));
-
-      chosen.forEach(item => {
-        const matched = driverMap.get(lower(item.driver));
-        if (!matched) {
-          checks.push({
-            level: "warn",
-            text: `${item.driver} is selected by ${item.person}, but that driver was not found in the right-side driver list.`
-          });
-        } else if (statusType(matched.draftStatus) === "available") {
-          checks.push({
-            level: "warn",
-            text: `${item.driver} is selected by ${item.person} but is still marked Available.`
-          });
-        }
-      });
-
-      drivers.forEach(driver => {
-        const type = statusType(driver.draftStatus);
-        const selected = chosenNames.includes(lower(driver.name));
-
-        if (type === "picked" && !selected) {
-          checks.push({
-            level: "warn",
-            text: `${driver.name} is marked ${driver.draftStatus || "unavailable"} but is not assigned to anyone.`
-          });
-        }
-
-        if (type === "other" && lower(driver.draftStatus) !== "") {
-          checks.push({
-            level: "info",
-            text: `${driver.name} has custom status "${driver.draftStatus}".`
-          });
-        }
-      });
-
-      roster.forEach(item => {
-        if (lower(item.status) === "picked" && !item.driver) {
-          checks.push({
-            level: "bad",
-            text: `${item.person} is marked Picked but has no driver selected.`
-          });
-        }
-      });
-
-      return checks;
-    }
+} 
 
     function renderDrivers(roster, drivers) {
       const available = drivers.filter(driver => statusType(driver.draftStatus) === "available");
