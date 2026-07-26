@@ -621,8 +621,28 @@
 } 
 
     function renderDrivers(roster, drivers) {
-      const available = drivers.filter(driver => statusType(driver.draftStatus) === "available");
-      const unavailable = drivers.filter(driver => statusType(driver.draftStatus) !== "available");
+      const selectedDriverNames = new Set(
+        roster
+          .map(item => lower(item.driver))
+          .filter(Boolean)
+      );
+
+      const displayDrivers = drivers.map(driver => {
+        const originalType = statusType(driver.draftStatus);
+        const wasSelected = selectedDriverNames.has(lower(driver.name));
+
+        // Memorial / ineligible status always takes priority. Otherwise, a
+        // driver selected in the left-side draft order is treated as Drafted
+        // even when the right-side status cell still says Available.
+        if (originalType !== "memorial" && wasSelected) {
+          return { ...driver, draftStatus: "Drafted" };
+        }
+
+        return driver;
+      });
+
+      const available = displayDrivers.filter(driver => statusType(driver.draftStatus) === "available");
+      const unavailable = displayDrivers.filter(driver => statusType(driver.draftStatus) !== "available");
 
       document.getElementById("availableDrivers").innerHTML =
         available.length ? available.map(driverCard).join("") : '<div class="empty">No drivers currently marked Available.</div>';
