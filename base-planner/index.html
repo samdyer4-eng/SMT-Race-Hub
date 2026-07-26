@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SMT Base Station Map Planner</title>
+<title>SMT Base Station Map Planner v1.1</title>
 <style>
 :root{
   --bg:#101317;--panel:#181d23;--panel2:#20262e;--border:#343c47;
@@ -46,6 +46,16 @@ h3{font-size:13px;color:#dfe5eb;margin:0 0 10px}
 .row{display:flex;gap:8px}.row>*{flex:1}
 
 .add-base-btn{width:100%;margin-top:10px;background:#1b5f3b;border-color:#2c8f59;font-weight:700}
+.camera-section{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.camera-heading{font-size:12px;font-weight:800;letter-spacing:.06em;color:#cbd3dc;margin-bottom:7px}
+.camera-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.camera-item{padding:7px 5px;border:1px solid #315f97;background:#183250;border-radius:6px;cursor:pointer;text-align:center;font-size:11px;font-weight:800;color:#dcecff;user-select:none}
+.camera-item:hover{border-color:#5d9ee9}
+.camera-item.selected{background:#245f9e;border-color:#8bc1ff}
+.camera-item.placed::after{content:" •";color:#60c986}
+.add-camera-btn{width:100%;margin-top:7px;padding:7px 8px;background:#173b61;border-color:#326da8;font-size:11px;font-weight:800}
+.camera-card{border-color:#315f97}
+.camera-label-preview{display:inline-block;padding:5px 9px;background:#1767ad;border:2px solid #d7edff;border-radius:6px;color:#fff;font-weight:800;font-size:12px}
 .summary{margin-top:14px;padding:10px;background:#13181e;border:1px solid var(--border);border-radius:8px}
 .summary h3{margin:0 0 8px}
 .summary-grid{display:grid;grid-template-columns:1fr auto;gap:5px 10px;font-size:12px}
@@ -152,6 +162,12 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
         <span><i class="dot"></i> Omni</span>
         <span><i class="wedge"></i> Directional</span>
       </div>
+
+      <div class="camera-section">
+        <div class="camera-heading">CAMERAS</div>
+        <div id="cameraList" class="camera-list"></div>
+        <button id="addCameraBtn" class="add-camera-btn">+ Add Camera</button>
+      </div>
     </div>
   </aside>
 
@@ -173,6 +189,19 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
   <aside class="inspector">
     <h2>SELECTED BASE</h2>
     <div id="noSelection" class="empty">Click a base in the left list or on the map.</div>
+
+    <div id="cameraEditor" hidden>
+      <div class="card camera-card">
+        <h3>SELECTED CAMERA</h3>
+        <div class="field">
+          <label>Camera Label</label>
+          <input id="cameraLabel" placeholder="Example: CAM 53">
+        </div>
+        <div class="small">Small blue reference marker shown on the map and exported PNG.</div>
+        <div style="height:10px"></div>
+        <button id="removeCameraBtn" class="danger">Remove From Map</button>
+      </div>
+    </div>
 
     <div id="editor" hidden>
       <div class="card">
@@ -269,8 +298,9 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
 const DEFAULT_IMAGE=null;
 const canvas=document.getElementById("canvas"),ctx=canvas.getContext("2d"),workspace=document.getElementById("workspace");
 const baseList=document.getElementById("baseList");
+const cameraList=document.getElementById("cameraList");
 let dpr=1,image=new Image(),imageSrc=null,imageReady=false;
-let view={x:0,y:0,scale:1},trackLocked=false,equipmentLocked=false,selectedId=null,interaction=null;
+let view={x:0,y:0,scale:1},trackLocked=false,equipmentLocked=false,selectedId=null,selectedCameraId=null,interaction=null;
 let trackName="",seriesName="INDYCAR",revision="1",symbolScale=1,directionalScale=1,baseTheme="dark";
 let undoStack=[],redoStack=[],editSnapshot=null;
 let autosaveTimer=null;
@@ -292,6 +322,15 @@ const bases=INDY_BASE_IDS.map((baseId,i)=>({
   power:"",fiber:"",notes:""
 }));
 
+const cameras=Array.from({length:4},(_,i)=>({
+  id:`CAMERA${i+1}`,
+  label:`CAM ${i+1}`,
+  placed:false,
+  x:.5,
+  y:.5
+}));
+let nextCameraUid=5;
+
 const fields={
   displayName:document.getElementById("displayName"),
   aId:document.getElementById("aId"),aType:document.getElementById("aType"),aAngle:document.getElementById("aAngle"),aLength:document.getElementById("aLength"),
@@ -308,14 +347,25 @@ function baseLabel(b){
   if(bb)return bb;
   return "NEW BASE";
 }
-function cloneState(){return JSON.stringify({view,trackLocked,equipmentLocked,selectedId,bases,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme});}
+function cloneState(){return JSON.stringify({view,trackLocked,equipmentLocked,selectedId,selectedCameraId,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme});}
 function restoreState(raw){
   const s=JSON.parse(raw);
-  view={...s.view};trackLocked=!!s.trackLocked;equipmentLocked=!!s.equipmentLocked;selectedId=s.selectedId||null;
+  view={...s.view};trackLocked=!!s.trackLocked;equipmentLocked=!!s.equipmentLocked;selectedId=s.selectedId||null;selectedCameraId=s.selectedCameraId||null;
   trackName=s.trackName||"";seriesName=s.seriesName||"INDYCAR";revision=s.revision||"1";symbolScale=s.symbolScale||1;directionalScale=s.directionalScale||1;baseTheme=s.baseTheme||"dark";
   s.bases.forEach((v,i)=>Object.assign(bases[i],v));
+  if(Array.isArray(s.cameras)){
+    cameras.length=0;
+    s.cameras.forEach((c,i)=>cameras.push({
+      id:c.id||`CAMERA${i+1}`,
+      label:c.label||`CAM ${i+1}`,
+      placed:!!c.placed,
+      x:c.x??.5,
+      y:c.y??.5
+    }));
+    nextCameraUid=cameras.length+1;
+  }
   syncMetadataFields();
-  syncLockButtons();renderBaseList();populateEditor();draw();updateUndoButtons();scheduleAutosave();
+  syncLockButtons();renderBaseList();renderCameraList();populateEditor();draw();updateUndoButtons();scheduleAutosave();
 }
 function pushUndo(raw=cloneState()){
   undoStack.push(raw);if(undoStack.length>80)undoStack.shift();redoStack=[];updateUndoButtons();
@@ -354,7 +404,7 @@ function scheduleAutosave(){
   document.getElementById("autosaveStatus").textContent="Saving…";
   autosaveTimer=setTimeout(()=>{
     try{
-      const payload={version:10,imageSrc,view,trackLocked,equipmentLocked,bases,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
+      const payload={version:11,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
       localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(payload));
       const savedAt=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
       document.getElementById("autosaveStatus").textContent=`Autosaved ${savedAt}`;
@@ -397,7 +447,23 @@ function loadAutosave(){
       bases.push(restored);
     });
     nextBaseUid=bases.length+1;
-    syncMetadataFields();syncLockButtons();renderBaseList();populateEditor();
+
+    cameras.length=0;
+    if(Array.isArray(d.cameras)&&d.cameras.length){
+      d.cameras.forEach((c,i)=>cameras.push({
+        id:c.id||`CAMERA${i+1}`,
+        label:c.label||`CAM ${i+1}`,
+        placed:!!c.placed,
+        x:c.x??.5,
+        y:c.y??.5
+      }));
+    }else{
+      for(let i=0;i<4;i++)cameras.push({id:`CAMERA${i+1}`,label:`CAM ${i+1}`,placed:false,x:.5,y:.5});
+    }
+    nextCameraUid=cameras.length+1;
+    selectedCameraId=null;
+
+    syncMetadataFields();syncLockButtons();renderBaseList();renderCameraList();populateEditor();
     loadImage(d.imageSrc||null,false);
     document.getElementById("autosaveStatus").textContent="Autosave restored";
     if(sourceKey!==AUTOSAVE_KEY){
@@ -562,6 +628,30 @@ function drawBase(b){
   }
   ctx.restore();
 }
+function drawCamera(camera){
+  const p=imageToScreen(camera.x,camera.y);
+  const selected=camera.id===selectedCameraId;
+  const scale=Math.max(.8,symbolScale*.82);
+
+  ctx.save();
+  ctx.font=`bold ${12*scale}px Arial`;
+  const label=(camera.label||"CAM").trim()||"CAM";
+  const w=Math.max(42*scale,ctx.measureText(label).width+12*scale);
+  const h=22*scale;
+
+  ctx.fillStyle=selected?"#2e86d1":"#1767ad";
+  ctx.strokeStyle=selected?"#ffffff":"#d7edff";
+  ctx.lineWidth=selected?3:2;
+  roundRect(ctx,p.x-w/2,p.y-h/2,w,h,5*scale);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle="#ffffff";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillText(label,p.x,p.y);
+  ctx.restore();
+}
 function getEmptyUploadButton(){
   const cw=canvas.clientWidth,ch=canvas.clientHeight;
   const w=Math.min(250,Math.max(180,cw*.28));
@@ -606,6 +696,7 @@ function draw(){
   }
   ctx.drawImage(image,view.x,view.y,image.width*view.scale,image.height*view.scale);
   bases.filter(b=>b.placed).forEach(drawBase);
+  cameras.filter(c=>c.placed).forEach(drawCamera);
 }
 function renderBaseList(){
   baseList.innerHTML="";
@@ -613,7 +704,7 @@ function renderBaseList(){
     const el=document.createElement("div");
     el.className="base-item"+(b.placed?" placed":"")+(b.id===selectedId?" selected":"");
     el.textContent=baseLabel(b);el.draggable=!b.placed;el.dataset.id=b.id;
-    el.onclick=()=>{selectedId=b.id;renderBaseList();populateEditor();draw()};
+    el.onclick=()=>{selectedId=b.id;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();draw()};
     el.addEventListener("dragstart",e=>{
       if(b.placed){e.preventDefault();return}
       e.dataTransfer.setData("text/base-id",b.id);
@@ -622,6 +713,54 @@ function renderBaseList(){
   });
   updateSummary();
 }
+function renderCameraList(){
+  cameraList.innerHTML="";
+  cameras.forEach(camera=>{
+    const el=document.createElement("div");
+    el.className="camera-item"+(camera.placed?" placed":"")+(camera.id===selectedCameraId?" selected":"");
+    el.textContent=(camera.label||"CAM").trim()||"CAM";
+    el.draggable=!camera.placed;
+    el.dataset.id=camera.id;
+
+    el.onclick=()=>{
+      selectedCameraId=camera.id;
+      selectedId=null;
+      renderBaseList();
+      renderCameraList();
+      populateEditor();
+      draw();
+    };
+
+    el.addEventListener("dragstart",e=>{
+      if(camera.placed){e.preventDefault();return}
+      e.dataTransfer.setData("text/camera-id",camera.id);
+    });
+
+    cameraList.appendChild(el);
+  });
+}
+function selectedCamera(){return cameras.find(c=>c.id===selectedCameraId)}
+function addCamera(){
+  pushUndo();
+  const camera={
+    id:`CAMERA${nextCameraUid}`,
+    label:`CAM ${nextCameraUid}`,
+    placed:false,
+    x:.5,
+    y:.5
+  };
+  nextCameraUid++;
+  cameras.push(camera);
+  selectedCameraId=camera.id;
+  selectedId=null;
+  renderBaseList();
+  renderCameraList();
+  populateEditor();
+  draw();
+  scheduleAutosave();
+}
+document.getElementById("addCameraBtn").onclick=addCamera;
+
 function updateSummary(){
   const placed=bases.filter(b=>b.placed);
   const allSides=placed.flatMap(b=>[b.a,b.b]);
@@ -669,7 +808,18 @@ document.getElementById("addBaseBtn").onclick=addBase;
 function selectedBase(){return bases.find(b=>b.id===selectedId)}
 function populateEditor(){
   const b=selectedBase();
-  document.getElementById("noSelection").hidden=!!b;document.getElementById("editor").hidden=!b;
+  const camera=selectedCamera();
+  const hasSelection=!!b||!!camera;
+
+  document.getElementById("noSelection").hidden=hasSelection;
+  document.getElementById("editor").hidden=!b;
+  document.getElementById("cameraEditor").hidden=!camera;
+
+  if(camera){
+    document.getElementById("cameraLabel").value=camera.label||"";
+    document.getElementById("removeCameraBtn").disabled=!camera.placed;
+    return;
+  }
   if(!b)return;
   document.getElementById("selectedTitle").textContent=baseLabel(b);
   fields.displayName.value=b.displayName||"";
@@ -688,6 +838,12 @@ function updateControls(){
 }
 function findHit(x,y){
   let best=null;
+
+  for(const camera of cameras){
+    if(!camera.placed)continue;
+    const p=imageToScreen(camera.x,camera.y);
+    if(Math.hypot(x-p.x,y-p.y)<24)return{type:"camera",camera};
+  }
   for(const b of bases){
     if(!b.placed)continue;
     for(const side of ["a","b"]){
@@ -715,12 +871,19 @@ canvas.addEventListener("pointerdown",e=>{
   }
   const hit=findHit(p.x,p.y);
   if(hit){
-    selectedId=hit.base.id;renderBaseList();populateEditor();draw();
+    if(hit.type==="camera"){
+      selectedCameraId=hit.camera.id;
+      selectedId=null;
+    }else{
+      selectedId=hit.base.id;
+      selectedCameraId=null;
+    }
+    renderBaseList();renderCameraList();populateEditor();draw();
     if(!equipmentLocked){
       pushUndo();interaction={...hit};canvas.setPointerCapture(e.pointerId);
     }
   }else{
-    selectedId=null;renderBaseList();populateEditor();
+    selectedId=null;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();
     if(!trackLocked){pushUndo();interaction={type:"pan",start:p,viewX:view.x,viewY:view.y};canvas.setPointerCapture(e.pointerId)}
     draw();
   }
@@ -733,6 +896,10 @@ canvas.addEventListener("pointermove",e=>{
   }else if(interaction.type==="antenna"){
     const bp=imageToScreen(interaction.base.x,interaction.base.y),s=interaction.base[interaction.side];
     s.offsetX=(p.x-bp.x)/view.scale;s.offsetY=(p.y-bp.y)/view.scale;
+  }else if(interaction.type==="camera"){
+    const q=screenToImage(p.x,p.y);
+    interaction.camera.x=Math.max(0,Math.min(1,q.x));
+    interaction.camera.y=Math.max(0,Math.min(1,q.y));
   }
   draw();
 });
@@ -746,9 +913,23 @@ canvas.addEventListener("wheel",e=>{
 canvas.addEventListener("dragover",e=>e.preventDefault());
 canvas.addEventListener("drop",e=>{
   e.preventDefault();if(!imageReady||equipmentLocked)return;
-  const id=e.dataTransfer.getData("text/base-id"),b=bases.find(x=>x.id===id);if(!b)return;
-  pushUndo();const p=eventPos(e),q=screenToImage(p.x,p.y);b.x=Math.max(0,Math.min(1,q.x));b.y=Math.max(0,Math.min(1,q.y));b.placed=true;
-  selectedId=b.id;renderBaseList();populateEditor();draw();scheduleAutosave();
+  const baseId=e.dataTransfer.getData("text/base-id");
+  const cameraId=e.dataTransfer.getData("text/camera-id");
+  const p=eventPos(e),q=screenToImage(p.x,p.y);
+
+  if(baseId){
+    const b=bases.find(x=>x.id===baseId);if(!b)return;
+    pushUndo();
+    b.x=Math.max(0,Math.min(1,q.x));b.y=Math.max(0,Math.min(1,q.y));b.placed=true;
+    selectedId=b.id;selectedCameraId=null;
+  }else if(cameraId){
+    const camera=cameras.find(x=>x.id===cameraId);if(!camera)return;
+    pushUndo();
+    camera.x=Math.max(0,Math.min(1,q.x));camera.y=Math.max(0,Math.min(1,q.y));camera.placed=true;
+    selectedCameraId=camera.id;selectedId=null;
+  }else return;
+
+  renderBaseList();renderCameraList();populateEditor();draw();scheduleAutosave();
 });
 
 Object.entries(fields).forEach(([key,el])=>{
@@ -771,6 +952,29 @@ Object.entries(fields).forEach(([key,el])=>{
 });
 document.getElementById("removeBaseBtn").onclick=()=>{
   const b=selectedBase();if(!b||!b.placed)return;pushUndo();b.placed=false;renderBaseList();populateEditor();draw();scheduleAutosave();
+};
+
+document.getElementById("cameraLabel").addEventListener("input",e=>{
+  const camera=selectedCamera();
+  if(!camera)return;
+  camera.label=e.target.value;
+  renderCameraList();
+  draw();
+  scheduleAutosave();
+});
+document.getElementById("cameraLabel").addEventListener("focus",()=>{editSnapshot=cloneState()});
+document.getElementById("cameraLabel").addEventListener("change",()=>{
+  if(editSnapshot){undoStack.push(editSnapshot);redoStack=[];editSnapshot=null;updateUndoButtons()}
+});
+document.getElementById("removeCameraBtn").onclick=()=>{
+  const camera=selectedCamera();
+  if(!camera||!camera.placed)return;
+  pushUndo();
+  camera.placed=false;
+  renderCameraList();
+  populateEditor();
+  draw();
+  scheduleAutosave();
 };
 
 function loadImage(src,fit=false){
@@ -815,11 +1019,11 @@ function syncLockButtons(){
 document.getElementById("trackLockBtn").onclick=()=>{pushUndo();trackLocked=!trackLocked;syncLockButtons();scheduleAutosave()};
 document.getElementById("equipmentLockBtn").onclick=()=>{pushUndo();equipmentLocked=!equipmentLocked;syncLockButtons();scheduleAutosave()};
 document.getElementById("clearBtn").onclick=()=>{
-  if(!confirm("Remove all placed base stations?"))return;pushUndo();bases.forEach(b=>b.placed=false);selectedId=null;renderBaseList();populateEditor();draw();scheduleAutosave();
+  if(!confirm("Remove all placed bases and cameras?"))return;pushUndo();bases.forEach(b=>b.placed=false);cameras.forEach(c=>c.placed=false);selectedId=null;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();draw();scheduleAutosave();
 };
 document.getElementById("saveBtn").onclick=()=>{
-  const data={version:10,imageSrc,view,trackLocked,equipmentLocked,bases,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
-  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),"SMT_Map_Layout_v1.json");
+  const data={version:11,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
+  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),"SMT_Map_Layout_v1_1.json");
 };
 document.getElementById("loadBtn").onclick=()=>document.getElementById("layoutInput").click();
 document.getElementById("layoutInput").onchange=e=>{
@@ -842,7 +1046,22 @@ document.getElementById("layoutInput").onchange=e=>{
       });
       nextBaseUid=bases.length+1;
     }
-    selectedId=null;syncLockButtons();renderBaseList();populateEditor();updateSummary();loadImage(d.imageSrc||null,false);
+
+    cameras.length=0;
+    if(Array.isArray(d.cameras)&&d.cameras.length){
+      d.cameras.forEach((c,i)=>cameras.push({
+        id:c.id||`CAMERA${i+1}`,
+        label:c.label||`CAM ${i+1}`,
+        placed:!!c.placed,
+        x:c.x??.5,
+        y:c.y??.5
+      }));
+    }else{
+      for(let i=0;i<4;i++)cameras.push({id:`CAMERA${i+1}`,label:`CAM ${i+1}`,placed:false,x:.5,y:.5});
+    }
+    nextCameraUid=cameras.length+1;
+
+    selectedId=null;selectedCameraId=null;syncLockButtons();renderBaseList();renderCameraList();populateEditor();updateSummary();loadImage(d.imageSrc||null,false);
   }catch(err){alert("Could not load layout: "+err.message)}};r.readAsText(file);
 };
 document.getElementById("exportBtn").onclick=()=>{
@@ -886,6 +1105,28 @@ document.getElementById("exportBtn").onclick=()=>{
     }
   });
 
+  cameras.filter(camera=>camera.placed).forEach(camera=>{
+    const p={x:camera.x*image.width,y:camera.y*image.height};
+    const scale=Math.max(.8,exportScale*.82);
+    const label=(camera.label||"CAM").trim()||"CAM";
+
+    o.font=`bold ${12*scale}px Arial`;
+    const w=Math.max(42*scale,o.measureText(label).width+12*scale);
+    const h=22*scale;
+    o.fillStyle="#1767ad";
+    o.strokeStyle="#d7edff";
+    o.lineWidth=2*scale;
+    o.beginPath();
+    o.roundRect(p.x-w/2,p.y-h/2,w,h,5*scale);
+    o.fill();
+    o.stroke();
+
+    o.fillStyle="#ffffff";
+    o.textAlign="center";
+    o.textBaseline="middle";
+    o.fillText(label,p.x,p.y);
+  });
+
   const counts=getSummaryCounts();
   const footerY=image.height;
   o.fillStyle="#f4f5f7";o.fillRect(0,footerY,out.width,footerH);
@@ -918,7 +1159,6 @@ document.getElementById("exportBtn").onclick=()=>{
   ];
 
   const detailSummary=[];
-  if(counts.ac>0) detailSummary.push(`${counts.ac} AC Primary`);
   if(counts.batteryOnly>0) detailSummary.push(`${counts.batteryOnly} Battery Only`);
   if(counts.fiber100>0) detailSummary.push(`${counts.fiber100} × 100' Fiber`);
   if(counts.fiber200>0) detailSummary.push(`${counts.fiber200} × 200' Fiber`);
@@ -1062,11 +1302,10 @@ document.getElementById("exportBtn").onclick=()=>{
 function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 syncMetadataFields();
-renderBaseList();populateEditor();updateSummary();syncLockButtons();window.addEventListener("resize",resize);resize();
+renderBaseList();renderCameraList();populateEditor();updateSummary();syncLockButtons();window.addEventListener("resize",resize);resize();
 draw();
 setTimeout(()=>loadAutosave(),200);
 })();
 </script>
 </body>
 </html>
-
