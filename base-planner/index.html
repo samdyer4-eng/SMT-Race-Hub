@@ -40,6 +40,7 @@ h3{font-size:13px;color:#dfe5eb;margin:0 0 10px}
 .base-group-title .group-arrow{font-size:13px;letter-spacing:0}
 .base-group.collapsed .base-group-items{display:none}
 .base-group-items{display:grid;gap:7px}
+.custom-base-empty{padding:7px 9px;border:1px dashed #46505c;border-radius:6px;color:#7f8a97;font-size:11px;text-align:center}
 .workspace{position:relative;overflow:hidden;background:#2a3038}
 #canvas{display:block;width:100%;height:100%;touch-action:none}
 .statusbar{position:absolute;left:10px;bottom:10px;background:rgba(12,15,18,.88);border:1px solid #39424e;border-radius:7px;padding:7px 9px;color:#d7dde5;font-size:12px;pointer-events:none}
@@ -872,18 +873,41 @@ function updateSummary(){
   document.getElementById("batteryCount").textContent=batteriesRequired;
 }
 function addBase(){
+  const entered=prompt("Enter the custom base station number:","");
+  if(entered===null)return;
+  const baseNumber=entered.trim();
+  if(!baseNumber){
+    alert("Enter a base station number.");
+    return;
+  }
+
+  const duplicate=bases.some(b=>
+    (b.a.id||"").trim().toLowerCase()===baseNumber.toLowerCase() ||
+    (b.b.id||"").trim().toLowerCase()===baseNumber.toLowerCase()
+  );
+  if(duplicate){
+    alert(`Base ${baseNumber} is already in the list.`);
+    return;
+  }
+
   pushUndo();
   const b={
     id:`BASE${nextBaseUid++}`,displayName:"",tier:"custom",placed:false,x:.5,y:.5,
-    a:{id:"",type:"none",angle:0,length:180,offsetX:-35,offsetY:-35},
+    a:{id:baseNumber,type:"none",angle:0,length:180,offsetX:-35,offsetY:-35},
     b:{id:"",type:"none",angle:0,length:180,offsetX:35,offsetY:-35},
     power:"AC Power",fiber:"",notes:""
   };
   bases.push(b);
   selectedId=b.id;
+  selectedCameraId=null;
   renderBaseList();
+  renderCameraList();
   populateEditor();
   draw();
+  requestAnimationFrame(()=>{
+    const item=baseList.querySelector(`[data-id="${b.id}"]`);
+    if(item)item.scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
   scheduleAutosave();
 }
 document.getElementById("addBaseBtn").onclick=addBase;
@@ -1380,7 +1404,7 @@ document.getElementById("exportBtn").onclick=()=>{
   o.textAlign="right";
   o.font=`${Math.round(10*footerScale)}px Arial`;
   o.fillStyle="#8a9199";
-  o.fillText("SMT RF Planner v1.4.1",right,legendY);
+  o.fillText("SMT RF Planner v1.4.3",right,legendY);
   const safePart=value=>(String(value||"").trim()||"Untitled")
     .replace(/[^a-z0-9]+/gi,"_")
     .replace(/^_+|_+$/g,"");
