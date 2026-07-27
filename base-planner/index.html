@@ -749,9 +749,13 @@ function renderBaseList(){
   const groups=seriesName==="NASCAR"
     ? [
         {tier:"preferred",label:"PREFERRED BASES",collapsed:false},
-        {tier:"secondary",label:"SECONDARY BASES",collapsed:secondaryBasesCollapsed}
+        {tier:"secondary",label:"SECONDARY BASES",collapsed:secondaryBasesCollapsed},
+        {tier:"custom",label:"CUSTOM BASES",collapsed:false}
       ]
-    : [{tier:"preferred",label:"",collapsed:false}];
+    : [
+        {tier:"preferred",label:"",collapsed:false},
+        {tier:"custom",label:"CUSTOM BASES",collapsed:false}
+      ];
 
   groups.forEach(group=>{
     const groupBases=bases.filter(b=>(b.tier||"preferred")===group.tier);
@@ -1376,7 +1380,7 @@ document.getElementById("exportBtn").onclick=()=>{
   o.textAlign="right";
   o.font=`${Math.round(10*footerScale)}px Arial`;
   o.fillStyle="#8a9199";
-  o.fillText("SMT RF Planner v1.4.0",right,legendY);
+  o.fillText("SMT RF Planner v1.4.1",right,legendY);
   const safePart=value=>(String(value||"").trim()||"Untitled")
     .replace(/[^a-z0-9]+/gi,"_")
     .replace(/^_+|_+$/g,"");
