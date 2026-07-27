@@ -333,7 +333,7 @@ function makeBase(baseId,tier="preferred",i=0){
     power:"AC Power",fiber:"",notes:""
   };
 }
-let secondaryBasesCollapsed=true;
+let secondaryBasesCollapsed=true,customBasesCollapsed=false;
 function rebuildBaseInventory(mode=seriesName){
   const normalized=normalizeSeries(mode);
   const set=BASE_SETS[normalized];
@@ -751,11 +751,11 @@ function renderBaseList(){
     ? [
         {tier:"preferred",label:"PREFERRED BASES",collapsed:false},
         {tier:"secondary",label:"SECONDARY BASES",collapsed:secondaryBasesCollapsed},
-        {tier:"custom",label:"CUSTOM BASES",collapsed:false}
+        {tier:"custom",label:"CUSTOM BASES",collapsed:customBasesCollapsed}
       ]
     : [
         {tier:"preferred",label:"",collapsed:false},
-        {tier:"custom",label:"CUSTOM BASES",collapsed:false}
+        {tier:"custom",label:"CUSTOM BASES",collapsed:customBasesCollapsed}
       ];
 
   groups.forEach(group=>{
@@ -770,10 +770,9 @@ function renderBaseList(){
       heading.className="base-group-title";
       heading.innerHTML=`<span>${group.label}</span><span class="group-arrow">${group.collapsed?"+":"−"}</span>`;
       heading.onclick=()=>{
-        if(group.tier==="secondary"){
-          secondaryBasesCollapsed=!secondaryBasesCollapsed;
-          renderBaseList();
-        }
+        if(group.tier==="secondary") secondaryBasesCollapsed=!secondaryBasesCollapsed;
+        if(group.tier==="custom") customBasesCollapsed=!customBasesCollapsed;
+        renderBaseList();
       };
       groupEl.appendChild(heading);
     }
@@ -933,7 +932,10 @@ function populateEditor(){
   fields.aId.value=b.a.id;fields.aType.value=b.a.type;fields.aAngle.value=b.a.angle;
   fields.bId.value=b.b.id;fields.bType.value=b.b.type;fields.bAngle.value=b.b.angle;
   fields.power.value=b.power;fields.fiber.value=b.fiber;fields.notes.value=b.notes;
-  document.getElementById("removeBaseBtn").disabled=!b.placed;
+  const removeBtn=document.getElementById("removeBaseBtn");
+  const isCustom=(b.tier||"preferred")==="custom";
+  removeBtn.textContent=isCustom?"Delete Custom Base":"Remove From Map";
+  removeBtn.disabled=isCustom?false:!b.placed;
   updateControls();
 }
 function updateControls(){
@@ -1055,7 +1057,22 @@ Object.entries(fields).forEach(([key,el])=>{
   });
 });
 document.getElementById("removeBaseBtn").onclick=()=>{
-  const b=selectedBase();if(!b||!b.placed)return;pushUndo();b.placed=false;renderBaseList();populateEditor();draw();scheduleAutosave();
+  const b=selectedBase();
+  if(!b)return;
+  const isCustom=(b.tier||"preferred")==="custom";
+  if(isCustom){
+    const label=baseLabel(b);
+    if(!confirm(`Delete custom base ${label} from this layout?`))return;
+    pushUndo();
+    const index=bases.findIndex(x=>x.id===b.id);
+    if(index!==-1)bases.splice(index,1);
+    selectedId=null;
+  }else{
+    if(!b.placed)return;
+    pushUndo();
+    b.placed=false;
+  }
+  renderBaseList();populateEditor();draw();scheduleAutosave();
 };
 
 document.getElementById("cameraLabel").addEventListener("input",e=>{
@@ -1404,7 +1421,7 @@ document.getElementById("exportBtn").onclick=()=>{
   o.textAlign="right";
   o.font=`${Math.round(10*footerScale)}px Arial`;
   o.fillStyle="#8a9199";
-  o.fillText("SMT RF Planner v1.4.3",right,legendY);
+  o.fillText("SMT RF Planner v1.4.4",right,legendY);
   const safePart=value=>(String(value||"").trim()||"Untitled")
     .replace(/[^a-z0-9]+/gi,"_")
     .replace(/^_+|_+$/g,"");
