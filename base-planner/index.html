@@ -57,6 +57,7 @@ h3{font-size:13px;color:#dfe5eb;margin:0 0 10px}
 .row{display:flex;gap:8px}.row>*{flex:1}
 
 .add-base-btn{width:100%;margin-top:10px;background:#1b5f3b;border-color:#2c8f59;font-weight:700}
+.add-base-btn.delete-mode{background:#6a2428;border-color:#a94349;color:#ffd9db}
 .camera-section{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
 .camera-heading{font-size:12px;font-weight:800;letter-spacing:.06em;color:#cbd3dc;margin-bottom:7px}
 .camera-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
@@ -909,7 +910,34 @@ function addBase(){
   });
   scheduleAutosave();
 }
-document.getElementById("addBaseBtn").onclick=addBase;
+function syncCustomBaseButton(){
+  const button=document.getElementById("addBaseBtn");
+  const b=selectedBase();
+  const deleting=!!b && (b.tier||"preferred")==="custom";
+  button.textContent=deleting?`Delete Custom Base ${baseLabel(b)}`:"+ Add Custom Base";
+  button.classList.toggle("delete-mode",deleting);
+}
+
+function deleteSelectedCustomBase(){
+  const b=selectedBase();
+  if(!b || (b.tier||"preferred")!=="custom")return;
+  const label=baseLabel(b);
+  if(!confirm(`Delete custom base ${label} from this layout?`))return;
+  pushUndo();
+  const index=bases.findIndex(x=>x.id===b.id);
+  if(index!==-1)bases.splice(index,1);
+  selectedId=null;
+  renderBaseList();
+  populateEditor();
+  draw();
+  scheduleAutosave();
+}
+
+document.getElementById("addBaseBtn").onclick=()=>{
+  const b=selectedBase();
+  if(b && (b.tier||"preferred")==="custom") deleteSelectedCustomBase();
+  else addBase();
+};
 
 function selectedBase(){return bases.find(b=>b.id===selectedId)}
 function populateEditor(){
@@ -920,6 +948,7 @@ function populateEditor(){
   document.getElementById("noSelection").hidden=hasSelection;
   document.getElementById("editor").hidden=!b;
   document.getElementById("cameraEditor").hidden=!camera;
+  syncCustomBaseButton();
 
   if(camera){
     document.getElementById("cameraLabel").value=camera.label||"";
@@ -933,9 +962,8 @@ function populateEditor(){
   fields.bId.value=b.b.id;fields.bType.value=b.b.type;fields.bAngle.value=b.b.angle;
   fields.power.value=b.power;fields.fiber.value=b.fiber;fields.notes.value=b.notes;
   const removeBtn=document.getElementById("removeBaseBtn");
-  const isCustom=(b.tier||"preferred")==="custom";
-  removeBtn.textContent=isCustom?"Delete Custom Base":"Remove From Map";
-  removeBtn.disabled=isCustom?false:!b.placed;
+  removeBtn.textContent="Remove From Map";
+  removeBtn.disabled=!b.placed;
   updateControls();
 }
 function updateControls(){
@@ -1058,21 +1086,13 @@ Object.entries(fields).forEach(([key,el])=>{
 });
 document.getElementById("removeBaseBtn").onclick=()=>{
   const b=selectedBase();
-  if(!b)return;
-  const isCustom=(b.tier||"preferred")==="custom";
-  if(isCustom){
-    const label=baseLabel(b);
-    if(!confirm(`Delete custom base ${label} from this layout?`))return;
-    pushUndo();
-    const index=bases.findIndex(x=>x.id===b.id);
-    if(index!==-1)bases.splice(index,1);
-    selectedId=null;
-  }else{
-    if(!b.placed)return;
-    pushUndo();
-    b.placed=false;
-  }
-  renderBaseList();populateEditor();draw();scheduleAutosave();
+  if(!b||!b.placed)return;
+  pushUndo();
+  b.placed=false;
+  renderBaseList();
+  populateEditor();
+  draw();
+  scheduleAutosave();
 };
 
 document.getElementById("cameraLabel").addEventListener("input",e=>{
