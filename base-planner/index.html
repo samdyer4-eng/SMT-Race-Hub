@@ -30,6 +30,16 @@ h3{font-size:13px;color:#dfe5eb;margin:0 0 10px}
 .base-item:hover{border-color:#647286}
 .base-item.selected{background:#23416f;border-color:#5b9cff}
 .base-item.placed::after{content:"  •";color:#60c986}
+.base-group-title{margin:10px 0 5px;padding:5px 3px 3px;color:#aeb8c4;font-size:10px;font-weight:800;letter-spacing:.08em;border-bottom:1px solid #343c47}
+.base-item.secondary{background:#1b2026;color:#c2c9d1;border-color:#3b424b}
+.base-item.secondary:hover{border-color:#697482}
+.base-group{display:grid;gap:7px}
+.base-group+.base-group{margin-top:10px}
+.base-group-title{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border:1px solid #3b424b;background:#151a20;border-radius:6px;color:#cbd3dc;font-size:10px;font-weight:800;letter-spacing:.08em;cursor:pointer;user-select:none}
+.base-group-title:hover{border-color:#697482}
+.base-group-title .group-arrow{font-size:13px;letter-spacing:0}
+.base-group.collapsed .base-group-items{display:none}
+.base-group-items{display:grid;gap:7px}
 .workspace{position:relative;overflow:hidden;background:#2a3038}
 #canvas{display:block;width:100%;height:100%;touch-action:none}
 .statusbar{position:absolute;left:10px;bottom:10px;background:rgba(12,15,18,.88);border:1px solid #39424e;border-radius:7px;padding:7px 9px;color:#d7dde5;font-size:12px;pointer-events:none}
@@ -113,12 +123,8 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
   <div style="display:flex;align-items:center;gap:6px">
     <label for="seriesName" style="font-size:12px;color:#c7ced7">Series</label>
     <select id="seriesName" style="width:135px;background:#11161b;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px">
-      <option>INDYCAR</option>
-      <option>NASCAR Cup</option>
-      <option>NASCAR Xfinity</option>
-      <option>NASCAR Trucks</option>
-      <option>IMSA</option>
-      <option>Other</option>
+      <option value="INDYCAR">INDYCAR</option>
+      <option value="NASCAR">NASCAR</option>
     </select>
   </div>
   <div style="display:flex;align-items:center;gap:6px">
@@ -157,7 +163,7 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
     <div id="baseSection">
       <div class="hint">Click any base to edit it. Drag an unplaced base onto the track.</div>
       <div id="baseList" class="base-list"></div>
-      <button id="addBaseBtn" class="add-base-btn">+ Add Base</button>
+      <button id="addBaseBtn" class="add-base-btn">+ Add Custom Base</button>
       <div class="legend">
         <span><i class="dot"></i> Omni</span>
         <span><i class="wedge"></i> Directional</span>
@@ -233,10 +239,6 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
           <label>Direction: <span id="aAngleText">0°</span></label>
           <input id="aAngle" type="range" min="0" max="359" value="0">
         </div>
-        <div id="aLengthWrap" class="field">
-          <label>Coverage Length: <span id="aLengthText">180</span></label>
-          <input id="aLength" type="range" min="80" max="450" value="180">
-        </div>
       </div>
 
       <div class="card">
@@ -256,10 +258,6 @@ body.sidebar-collapsed .sidebar>*:not(.sidebar-toggle){display:none!important}
         <div id="bAngleWrap" class="field">
           <label>Direction: <span id="bAngleText">0°</span></label>
           <input id="bAngle" type="range" min="0" max="359" value="0">
-        </div>
-        <div id="bLengthWrap" class="field">
-          <label>Coverage Length: <span id="bLengthText">180</span></label>
-          <input id="bLength" type="range" min="80" max="450" value="180">
         </div>
       </div>
 
@@ -313,14 +311,39 @@ const LEGACY_AUTOSAVE_KEYS=[
 ];
 const BASE_DIRECTIONAL_RADIUS=115;
 
-const INDY_BASE_IDS=["131","133","134","135","136","137","138","139","145","170","171","174","176","177","178"];
-let nextBaseUid=INDY_BASE_IDS.length+1;
-const bases=INDY_BASE_IDS.map((baseId,i)=>({
-  id:`BASE${i+1}`,displayName:"",placed:false,x:.5,y:.5,
-  a:{id:baseId,type:"none",angle:0,length:180,offsetX:-35,offsetY:-35},
-  b:{id:"",type:"none",angle:0,length:180,offsetX:35,offsetY:-35},
-  power:"",fiber:"",notes:""
-}));
+const BASE_SETS={
+  INDYCAR:{
+    preferred:["131","133","134","135","136","137","138","139","145","170","171","174","176","177","178"],
+    secondary:[]
+  },
+  NASCAR:{
+    preferred:["138","153","154","157","158","172","176","177"],
+    secondary:["137","139","150","151","152","159","170","171","173","174","178","179"]
+  }
+};
+let nextBaseUid=1;
+const bases=[];
+function normalizeSeries(value){return value==="NASCAR"||String(value||"").startsWith("NASCAR")?"NASCAR":"INDYCAR"}
+function makeBase(baseId,tier="preferred",i=0){
+  return {
+    id:`BASE${i+1}`,displayName:"",tier,placed:false,x:.5,y:.5,
+    a:{id:baseId,type:"none",angle:0,length:180,offsetX:-35,offsetY:-35},
+    b:{id:"",type:"none",angle:0,length:180,offsetX:35,offsetY:-35},
+    power:"AC Power",fiber:"",notes:""
+  };
+}
+let secondaryBasesCollapsed=true;
+function rebuildBaseInventory(mode=seriesName){
+  const normalized=normalizeSeries(mode);
+  const set=BASE_SETS[normalized];
+  bases.length=0;
+  set.preferred.forEach((id,i)=>bases.push(makeBase(id,"preferred",i)));
+  set.secondary.forEach((id,i)=>bases.push(makeBase(id,"secondary",set.preferred.length+i)));
+  nextBaseUid=bases.length+1;
+  selectedId=null;
+  secondaryBasesCollapsed=true;
+}
+rebuildBaseInventory("INDYCAR");
 
 const cameras=Array.from({length:4},(_,i)=>({
   id:`CAMERA${i+1}`,
@@ -333,8 +356,8 @@ let nextCameraUid=5;
 
 const fields={
   displayName:document.getElementById("displayName"),
-  aId:document.getElementById("aId"),aType:document.getElementById("aType"),aAngle:document.getElementById("aAngle"),aLength:document.getElementById("aLength"),
-  bId:document.getElementById("bId"),bType:document.getElementById("bType"),bAngle:document.getElementById("bAngle"),bLength:document.getElementById("bLength"),
+  aId:document.getElementById("aId"),aType:document.getElementById("aType"),aAngle:document.getElementById("aAngle"),
+  bId:document.getElementById("bId"),bType:document.getElementById("bType"),bAngle:document.getElementById("bAngle"),
   power:document.getElementById("power"),fiber:document.getElementById("fiber"),notes:document.getElementById("notes")
 };
 
@@ -351,8 +374,16 @@ function cloneState(){return JSON.stringify({view,trackLocked,equipmentLocked,se
 function restoreState(raw){
   const s=JSON.parse(raw);
   view={...s.view};trackLocked=!!s.trackLocked;equipmentLocked=!!s.equipmentLocked;selectedId=s.selectedId||null;selectedCameraId=s.selectedCameraId||null;
-  trackName=s.trackName||"";seriesName=s.seriesName||"INDYCAR";revision=s.revision||"1";symbolScale=s.symbolScale||1;directionalScale=s.directionalScale||1;baseTheme=s.baseTheme||"dark";
-  s.bases.forEach((v,i)=>Object.assign(bases[i],v));
+  trackName=s.trackName||"";seriesName=normalizeSeries(s.seriesName);revision=s.revision||"1";symbolScale=s.symbolScale||1;directionalScale=s.directionalScale||1;baseTheme=s.baseTheme||"dark";
+  bases.length=0;
+  (s.bases||[]).forEach((v,i)=>bases.push({
+    ...makeBase(v?.a?.id||"",v.tier||"preferred",i),
+    ...v,
+    tier:v.tier||"preferred",
+    a:{...makeBase("","preferred",i).a,...v.a},
+    b:{...makeBase("","preferred",i).b,...v.b}
+  }));
+  nextBaseUid=bases.length+1;
   if(Array.isArray(s.cameras)){
     cameras.length=0;
     s.cameras.forEach((c,i)=>cameras.push({
@@ -404,7 +435,7 @@ function scheduleAutosave(){
   document.getElementById("autosaveStatus").textContent="Saving…";
   autosaveTimer=setTimeout(()=>{
     try{
-      const payload={version:11,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
+      const payload={version:14,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
       localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(payload));
       const savedAt=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
       document.getElementById("autosaveStatus").textContent=`Autosaved ${savedAt}`;
@@ -433,14 +464,14 @@ function loadAutosave(){
     const d=JSON.parse(raw);
     if(!confirm("Restore the previous locally autosaved map?"))return false;
     view={...d.view};trackLocked=!!d.trackLocked;equipmentLocked=!!d.equipmentLocked;
-    trackName=d.trackName||"";seriesName=d.seriesName||"INDYCAR";revision=d.revision||"1";symbolScale=d.symbolScale||1;directionalScale=d.directionalScale||1;baseTheme=d.baseTheme||"dark";
+    trackName=d.trackName||"";seriesName=normalizeSeries(d.seriesName);revision=d.revision||"1";symbolScale=d.symbolScale||1;directionalScale=d.directionalScale||1;baseTheme=d.baseTheme||"dark";
     bases.length=0;
     (d.bases||[]).forEach((s,i)=>{
       const restored={
-        id:s.id||`BASE${i+1}`,displayName:s.displayName||"",placed:!!s.placed,x:s.x??.5,y:s.y??.5,
+        id:s.id||`BASE${i+1}`,displayName:s.displayName||"",tier:s.tier||"preferred",placed:!!s.placed,x:s.x??.5,y:s.y??.5,
         a:{offsetX:-35,offsetY:-35,id:"",type:"none",angle:0,...s.a},
         b:{offsetX:35,offsetY:-35,id:"",type:"none",angle:0,...s.b},
-        power:s.power||"",fiber:s.fiber||"",notes:s.notes||""
+        power:s.power||"AC Power",fiber:s.fiber||"",notes:s.notes||""
       };
       delete restored.a.length;
       delete restored.b.length;
@@ -507,7 +538,22 @@ function getSummaryCounts(){
   };
 }
 document.getElementById("trackName").addEventListener("input",e=>{trackName=e.target.value;scheduleAutosave()});
-document.getElementById("seriesName").addEventListener("change",e=>{seriesName=e.target.value;scheduleAutosave()});
+document.getElementById("seriesName").addEventListener("change",e=>{
+  const previous=seriesName;
+  const next=normalizeSeries(e.target.value);
+  if(next===previous)return;
+  const hasMapEquipment=bases.some(b=>b.placed)||cameras.some(c=>c.placed);
+  if(hasMapEquipment&&!confirm("Switching series will clear all placed bases and cameras from the map. Continue?")){
+    e.target.value=previous;
+    return;
+  }
+  pushUndo();
+  seriesName=next;
+  rebuildBaseInventory(next);
+  cameras.forEach(c=>c.placed=false);
+  selectedCameraId=null;
+  renderBaseList();renderCameraList();populateEditor();updateSummary();draw();scheduleAutosave();
+});
 document.getElementById("revision").addEventListener("input",e=>{revision=e.target.value;scheduleAutosave()});
 document.getElementById("symbolSize").addEventListener("input",e=>{
   symbolScale=Number(e.target.value);
@@ -621,7 +667,7 @@ function drawBase(b){
   ctx.lineWidth=sel?3:2;
   roundRect(ctx,p.x-w/2,p.y-h/2,w,h,6*symbolScale);ctx.fill();ctx.stroke();
   ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillStyle=theme.text;ctx.fillText(label,p.x,p.y);
-  if(b.power==="Battery Power" || !b.power){
+  if(b.power==="Battery Power"){
     ctx.font=`${16*symbolScale}px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif`;
     ctx.textAlign="left";ctx.textBaseline="middle";
     ctx.fillText("🔋",p.x+w/2-1*symbolScale,p.y+1);
@@ -700,16 +746,49 @@ function draw(){
 }
 function renderBaseList(){
   baseList.innerHTML="";
-  bases.forEach(b=>{
-    const el=document.createElement("div");
-    el.className="base-item"+(b.placed?" placed":"")+(b.id===selectedId?" selected":"");
-    el.textContent=baseLabel(b);el.draggable=!b.placed;el.dataset.id=b.id;
-    el.onclick=()=>{selectedId=b.id;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();draw()};
-    el.addEventListener("dragstart",e=>{
-      if(b.placed){e.preventDefault();return}
-      e.dataTransfer.setData("text/base-id",b.id);
+  const groups=seriesName==="NASCAR"
+    ? [
+        {tier:"preferred",label:"PREFERRED BASES",collapsed:false},
+        {tier:"secondary",label:"SECONDARY BASES",collapsed:secondaryBasesCollapsed}
+      ]
+    : [{tier:"preferred",label:"",collapsed:false}];
+
+  groups.forEach(group=>{
+    const groupBases=bases.filter(b=>(b.tier||"preferred")===group.tier);
+    if(!groupBases.length)return;
+
+    const groupEl=document.createElement("div");
+    groupEl.className="base-group"+(group.collapsed?" collapsed":"");
+
+    if(group.label){
+      const heading=document.createElement("div");
+      heading.className="base-group-title";
+      heading.innerHTML=`<span>${group.label}</span><span class="group-arrow">${group.collapsed?"+":"−"}</span>`;
+      heading.onclick=()=>{
+        if(group.tier==="secondary"){
+          secondaryBasesCollapsed=!secondaryBasesCollapsed;
+          renderBaseList();
+        }
+      };
+      groupEl.appendChild(heading);
+    }
+
+    const items=document.createElement("div");
+    items.className="base-group-items";
+    groupBases.forEach(b=>{
+      const tier=b.tier||"preferred";
+      const el=document.createElement("div");
+      el.className="base-item"+(tier==="secondary"?" secondary":"")+(b.placed?" placed":"")+(b.id===selectedId?" selected":"");
+      el.textContent=baseLabel(b);el.draggable=!b.placed;el.dataset.id=b.id;
+      el.onclick=()=>{selectedId=b.id;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();draw()};
+      el.addEventListener("dragstart",e=>{
+        if(b.placed){e.preventDefault();return}
+        e.dataTransfer.setData("text/base-id",b.id);
+      });
+      items.appendChild(el);
     });
-    baseList.appendChild(el);
+    groupEl.appendChild(items);
+    baseList.appendChild(groupEl);
   });
   updateSummary();
 }
@@ -784,17 +863,17 @@ function updateSummary(){
     ["Jumpers",fiberCounts["Jumper"]]
   ];
   document.getElementById("summaryGrid").innerHTML=rows.map(([k,v])=>`<div>${k}</div><div>${v}</div>`).join("");
-  const extraBatteryBases=placed.filter(b=>b.power==="Battery Power" || !b.power).length;
+  const extraBatteryBases=placed.filter(b=>b.power==="Battery Power").length;
   const batteriesRequired=placed.length+extraBatteryBases;
   document.getElementById("batteryCount").textContent=batteriesRequired;
 }
 function addBase(){
   pushUndo();
   const b={
-    id:`BASE${nextBaseUid++}`,displayName:"",placed:false,x:.5,y:.5,
+    id:`BASE${nextBaseUid++}`,displayName:"",tier:"custom",placed:false,x:.5,y:.5,
     a:{id:"",type:"none",angle:0,length:180,offsetX:-35,offsetY:-35},
     b:{id:"",type:"none",angle:0,length:180,offsetX:35,offsetY:-35},
-    power:"",fiber:"",notes:""
+    power:"AC Power",fiber:"",notes:""
   };
   bases.push(b);
   selectedId=b.id;
@@ -823,18 +902,17 @@ function populateEditor(){
   if(!b)return;
   document.getElementById("selectedTitle").textContent=baseLabel(b);
   fields.displayName.value=b.displayName||"";
-  fields.aId.value=b.a.id;fields.aType.value=b.a.type;fields.aAngle.value=b.a.angle;fields.aLength.value=b.a.length;
-  fields.bId.value=b.b.id;fields.bType.value=b.b.type;fields.bAngle.value=b.b.angle;fields.bLength.value=b.b.length;
+  fields.aId.value=b.a.id;fields.aType.value=b.a.type;fields.aAngle.value=b.a.angle;
+  fields.bId.value=b.b.id;fields.bType.value=b.b.type;fields.bAngle.value=b.b.angle;
   fields.power.value=b.power;fields.fiber.value=b.fiber;fields.notes.value=b.notes;
   document.getElementById("removeBaseBtn").disabled=!b.placed;
   updateControls();
 }
 function updateControls(){
   const ad=fields.aType.value==="directional",bd=fields.bType.value==="directional";
-  document.getElementById("aAngleWrap").style.display=ad?"block":"none";document.getElementById("aLengthWrap").style.display=ad?"block":"none";
-  document.getElementById("bAngleWrap").style.display=bd?"block":"none";document.getElementById("bLengthWrap").style.display=bd?"block":"none";
+  document.getElementById("aAngleWrap").style.display=ad?"block":"none";
+  document.getElementById("bAngleWrap").style.display=bd?"block":"none";
   document.getElementById("aAngleText").textContent=fields.aAngle.value+"°";document.getElementById("bAngleText").textContent=fields.bAngle.value+"°";
-  document.getElementById("aLengthText").textContent=fields.aLength.value;document.getElementById("bLengthText").textContent=fields.bLength.value;
 }
 function findHit(x,y){
   let best=null;
@@ -941,11 +1019,9 @@ Object.entries(fields).forEach(([key,el])=>{
     else if(key==="aId")b.a.id=el.value;
     else if(key==="aType")b.a.type=el.value;
     else if(key==="aAngle")b.a.angle=Number(el.value);
-    else if(key==="aLength")b.a.length=Number(el.value);
     else if(key==="bId")b.b.id=el.value;
     else if(key==="bType")b.b.type=el.value;
     else if(key==="bAngle")b.b.angle=Number(el.value);
-    else if(key==="bLength")b.b.length=Number(el.value);
     else b[key]=el.value;
     updateControls();renderBaseList();document.getElementById("selectedTitle").textContent=baseLabel(b);updateSummary();draw();scheduleAutosave();
   });
@@ -1022,23 +1098,23 @@ document.getElementById("clearBtn").onclick=()=>{
   if(!confirm("Remove all placed bases and cameras?"))return;pushUndo();bases.forEach(b=>b.placed=false);cameras.forEach(c=>c.placed=false);selectedId=null;selectedCameraId=null;renderBaseList();renderCameraList();populateEditor();draw();scheduleAutosave();
 };
 document.getElementById("saveBtn").onclick=()=>{
-  const data={version:11,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
-  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),"SMT_Map_Layout_v1_1.json");
+  const data={version:14,imageSrc,view,trackLocked,equipmentLocked,bases,cameras,trackName,seriesName,revision,symbolScale,directionalScale,baseTheme};
+  downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),"SMT_Map_Layout_v1_4.json");
 };
 document.getElementById("loadBtn").onclick=()=>document.getElementById("layoutInput").click();
 document.getElementById("layoutInput").onchange=e=>{
   const file=e.target.files[0];if(!file)return;const r=new FileReader();
   r.onload=()=>{try{
     pushUndo();const d=JSON.parse(r.result);if(d.view)view={...d.view};trackLocked=!!d.trackLocked;equipmentLocked=!!d.equipmentLocked;
-    trackName=d.trackName||"";seriesName=d.seriesName||"INDYCAR";revision=d.revision||"1";symbolScale=d.symbolScale||1;directionalScale=d.directionalScale||1;baseTheme=d.baseTheme||"dark";syncMetadataFields();
+    trackName=d.trackName||"";seriesName=normalizeSeries(d.seriesName);revision=d.revision||"1";symbolScale=d.symbolScale||1;directionalScale=d.directionalScale||1;baseTheme=d.baseTheme||"dark";syncMetadataFields();
     if(Array.isArray(d.bases)){
       bases.length=0;
       d.bases.forEach((s,i)=>{
         const restored={
-          id:s.id||`BASE${i+1}`,displayName:s.displayName||"",placed:!!s.placed,x:s.x??.5,y:s.y??.5,
+          id:s.id||`BASE${i+1}`,displayName:s.displayName||"",tier:s.tier||"preferred",placed:!!s.placed,x:s.x??.5,y:s.y??.5,
           a:{offsetX:-35,offsetY:-35,id:"",type:"none",angle:0,...s.a},
           b:{offsetX:35,offsetY:-35,id:"",type:"none",angle:0,...s.b},
-          power:s.power||"",fiber:s.fiber||"",notes:s.notes||""
+          power:s.power||"AC Power",fiber:s.fiber||"",notes:s.notes||""
         };
         delete restored.a.length;
         delete restored.b.length;
@@ -1098,7 +1174,7 @@ document.getElementById("exportBtn").onclick=()=>{
     o.fillStyle=theme.fill;o.strokeStyle=theme.stroke;o.lineWidth=2*exportScale;
     o.beginPath();o.roundRect(p.x-w/2,p.y-h/2,w,h,7*exportScale);o.fill();o.stroke();
     o.fillStyle=theme.text;o.textAlign="center";o.textBaseline="middle";o.fillText(label,p.x,p.y);
-    if(base.power==="Battery Power" || !base.power){
+    if(base.power==="Battery Power"){
       o.font=`${20*exportScale}px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif`;
       o.textAlign="left";o.textBaseline="middle";
       o.fillText("🔋",p.x+w/2-1*exportScale,p.y+1);
@@ -1149,7 +1225,7 @@ document.getElementById("exportBtn").onclick=()=>{
   o.textAlign="left";o.textBaseline="alphabetic";
   o.fillStyle="#15191e";
   o.font=`bold ${Math.round(14*footerScale)}px Arial`;
-  o.fillText("FIELD EQUIPMENT",left,footerY+Math.round(25*footerScale));
+  o.fillText("FIELD EQUIPMENT SUMMARY",left,footerY+Math.round(25*footerScale));
 
   const topSummary=[
     `Bases ${counts.placed}`,
@@ -1216,23 +1292,27 @@ document.getElementById("exportBtn").onclick=()=>{
   let titleSize=20;
   do{
     o.font=`bold ${Math.round(titleSize*footerScale)}px Arial`;
-    if(o.measureText("SMT Motorsports RF Deployment Map").width<=rightWidth || titleSize<=13)break;
+    if(o.measureText("SMT RF Deployment Map").width<=rightWidth || titleSize<=13)break;
     titleSize-=1;
   }while(true);
-  o.fillText("SMT Motorsports RF Deployment Map",right,footerY+Math.round(27*footerScale));
+  o.fillText("SMT RF Deployment Map",right,footerY+Math.round(27*footerScale));
 
   let eventSize=14;
-  const eventText=`${eventLine} • Revision ${revText}`;
+  const eventText=eventLine;
   do{
     o.font=`bold ${Math.round(eventSize*footerScale)}px Arial`;
     if(o.measureText(eventText).width<=rightWidth || eventSize<=9)break;
     eventSize-=1;
   }while(true);
-  o.fillText(eventText,right,footerY+Math.round(51*footerScale));
+  o.fillText(eventText,right,footerY+Math.round(49*footerScale));
+
+  o.font=`bold ${Math.round(11*footerScale)}px Arial`;
+  o.fillStyle="#454c54";
+  o.fillText(`Revision ${revText}`,right,footerY+Math.round(67*footerScale));
 
   o.font=`${Math.round(10*footerScale)}px Arial`;
   o.fillStyle="#767e87";
-  o.fillText(`Generated ${stamp}`,right,footerY+Math.round(70*footerScale));
+  o.fillText(`Generated ${stamp}`,right,footerY+Math.round(84*footerScale));
 
   // Bottom legend: compact group centered under the banner.
   const legendY=footerY+footerH-Math.round(17*footerScale);
@@ -1242,7 +1322,7 @@ document.getElementById("exportBtn").onclick=()=>{
   const legendItems=[
     {type:"omni",text:"Omni Antenna"},
     {type:"directional",text:"Directional Antenna"},
-    {type:"battery",text:"Battery Only / Power Unassigned"}
+    {type:"battery",text:"Battery Power"}
   ];
 
   const iconWidth=(type)=>type==="battery"?Math.round(22*footerScale):Math.round(18*footerScale);
@@ -1296,8 +1376,12 @@ document.getElementById("exportBtn").onclick=()=>{
   o.textAlign="right";
   o.font=`${Math.round(10*footerScale)}px Arial`;
   o.fillStyle="#8a9199";
-  o.fillText("SMT RF Planner v1.0.6",right,legendY);
-  out.toBlob(blob=>downloadBlob(blob,"SMT_Track_Map_v1_0_6.png"),"image/png");
+  o.fillText("SMT RF Planner v1.4.0",right,legendY);
+  const safePart=value=>(String(value||"").trim()||"Untitled")
+    .replace(/[^a-z0-9]+/gi,"_")
+    .replace(/^_+|_+$/g,"");
+  const exportName=`SMT_${safePart(seriesName)}_${safePart(trackName||"Track")}_Rev${safePart(revText)}.png`;
+  out.toBlob(blob=>downloadBlob(blob,exportName),"image/png");
 };
 function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
